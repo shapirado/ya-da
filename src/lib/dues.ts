@@ -36,7 +36,7 @@ export function computeDueStatus(
       const paid = lines
         .filter((line) => line.month === month)
         .reduce((sum, line) => sum + line.amount, 0);
-      const status = paid === due ? 'paid' : paid > 0 && paid < due ? 'partial' : 'missing';
+      const status = paid >= due ? 'paid' : paid > 0 ? 'partial' : 'missing';
       result.push({ month, due, paid, status });
     }
 

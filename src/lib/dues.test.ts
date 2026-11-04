@@ -22,6 +22,13 @@ test('two receipt lines in the same month sum together', () => {
   expect(result[0]).toMatchObject({ paid: 300, status: 'paid' });
 });
 
+test('an overpaid month is status paid, not missing', () => {
+  const result = computeDueStatus('2026-11-01',
+    [{ amount: 300, effectiveFrom: '2026-09-01' }],
+    [{ month: '2026-11-01', amount: 350 }], '2026-11-01');
+  expect(result[0]).toMatchObject({ due: 300, paid: 350, status: 'paid' });
+});
+
 test('a price change only applies from its effective month forward', () => {
   const result = computeDueStatus('2026-10-01',
     [{ amount: 300, effectiveFrom: '2026-09-01' }, { amount: 330, effectiveFrom: '2026-11-01' }],
