@@ -121,10 +121,13 @@ export async function resolveDocumentCreatedLines(
     if (payer) {
       payerId = payer.id;
       const children = await listChildrenWithPayer();
-      const match = children.find(
+      const matches = children.filter(
         (child) => child.payerId === payer.id && child.firstName.trim() === parsedRecipient.childName,
       );
-      if (match) childId = match.id;
+      // Exactly one match resolves the child; zero or more-than-one (ambiguous
+      // child name) leaves childId unset so computeStatus falls back to
+      // needs_review, per the task brief's amendment.
+      if (matches.length === 1) childId = matches[0].id;
     }
   }
 

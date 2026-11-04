@@ -187,6 +187,58 @@ describe("resolveDocumentCreatedLines", () => {
       await getSupabaseClient().from("payers").delete().eq("id", payer.id);
     }
   });
+
+  test("leaves childId unset (ambiguous) when the payer has two children sharing the same first name", async () => {
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const payer = await createPayer({ displayName: `רונית לוי ${suffix}`, role: "mom" });
+    const { data: groupData, error: groupError } = await getSupabaseClient()
+      .from("class_groups")
+      .insert({ day: `day-${suffix}`, time: "09:00", color: "#112233" })
+      .select()
+      .single();
+    if (groupError) throw groupError;
+    const classGroupId = groupData!.id as string;
+
+    const sharedFirstName = `עמליה ${suffix}`;
+    const child1 = await createChild({
+      firstName: sharedFirstName,
+      familyName: "לוי",
+      classGroupId,
+      gender: "girl",
+      payerId: payer.id,
+      enrollmentStart: "2026-01-01",
+    });
+    const child2 = await createChild({
+      firstName: sharedFirstName,
+      familyName: "לוי",
+      classGroupId,
+      gender: "girl",
+      payerId: payer.id,
+      enrollmentStart: "2026-01-01",
+    });
+
+    try {
+      const payload: MorningDocumentPayload = {
+        type: RECEIPT_DOCUMENT_TYPE,
+        recipient: { name: `${payer.displayName} (${sharedFirstName})` },
+        items: [{ description: "אוקטובר", sku: "חוג אומנות", price: 300, quantity: 1 }],
+        date: "2026-10-15",
+        total: 300,
+      };
+
+      const { lines } = await resolveDocumentCreatedLines(payload);
+      // Payer resolves unambiguously, but the child name matches two
+      // children of the same payer, so childId must be left unset — never
+      // silently pick the first match — so computeStatus falls back to
+      // needs_review per the task brief's amendment.
+      expect(lines).toEqual([{ month: "2026-10-01", amount: 300, childId: undefined, payerId: payer.id }]);
+    } finally {
+      await getSupabaseClient().from("children").delete().eq("id", child1.id);
+      await getSupabaseClient().from("children").delete().eq("id", child2.id);
+      await getSupabaseClient().from("class_groups").delete().eq("id", classGroupId);
+      await getSupabaseClient().from("payers").delete().eq("id", payer.id);
+    }
+  });
 });
 
 describe("computeContactUpdate", () => {
