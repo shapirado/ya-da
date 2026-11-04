@@ -1,17 +1,35 @@
 "use client";
 
-import { useSignIn } from "@clerk/nextjs";
+import { useState } from "react";
+import { usePathname } from "next/navigation";
+import { AuthenticateWithRedirectCallback, useSignIn } from "@clerk/nextjs";
+
+const GENERIC_ERROR = "לא הצלחנו להתחבר, נסי שוב";
 
 export default function SignInPage() {
+  const pathname = usePathname();
   const { isLoaded, signIn } = useSignIn();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (pathname?.endsWith("/sso-callback")) {
+    return <AuthenticateWithRedirectCallback />;
+  }
 
   function handleGoogleSignIn() {
-    if (!isLoaded) return;
-    void signIn.authenticateWithRedirect({
-      strategy: "oauth_google",
-      redirectUrl: "/sign-in/sso-callback",
-      redirectUrlComplete: "/",
-    });
+    if (!isLoaded || isSubmitting) return;
+    setError(null);
+    setIsSubmitting(true);
+    signIn
+      .authenticateWithRedirect({
+        strategy: "oauth_google",
+        redirectUrl: "/sign-in/sso-callback",
+        redirectUrlComplete: "/",
+      })
+      .catch(() => {
+        setError(GENERIC_ERROR);
+        setIsSubmitting(false);
+      });
   }
 
   return (
@@ -51,11 +69,17 @@ export default function SignInPage() {
           type="button"
           className="yd-btn secondary block lg"
           onClick={handleGoogleSignIn}
-          disabled={!isLoaded}
+          disabled={!isLoaded || isSubmitting}
         >
           <GoogleIcon />
           כניסה עם Google
         </button>
+
+        {error ? (
+          <p role="alert" className="yd-login-error">
+            {error}
+          </p>
+        ) : null}
       </div>
     </main>
   );
