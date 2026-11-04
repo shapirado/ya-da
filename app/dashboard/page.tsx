@@ -1,11 +1,14 @@
 import AppShell from "@/src/components/AppShell";
 import UnpaidList, { type UnpaidChild, type UnpaidMonthStatus } from "@/src/components/dashboard/UnpaidList";
 import MissingTotal from "@/src/components/dashboard/MissingTotal";
+import RecordPaymentButton from "@/src/components/dashboard/RecordPaymentButton";
+import type { CreateReceiptInput } from "@/src/components/RecordPayment/RecordPaymentModal";
 import { listChildPrices, listChildrenWithPayer } from "@/src/lib/db/children";
 import { listClassGroups } from "@/src/lib/db/classGroups";
+import { listPayers } from "@/src/lib/db/payers";
 import { listReceiptLinesForChild } from "@/src/lib/db/receipts";
 import { computeDueStatus } from "@/src/lib/dues";
-import { markMonthPaid, type MarkMonthPaidInput } from "./actions";
+import { markMonthPaid, recordPayment, type MarkMonthPaidInput } from "./actions";
 
 // Always show today's live status rather than a build-time snapshot.
 export const dynamic = "force-dynamic";
@@ -22,11 +25,23 @@ function currentMonth(): string {
 
 export default async function DashboardPage() {
   const asOfMonth = currentMonth();
-  const [children, classGroups] = await Promise.all([
+  const [children, classGroups, payers] = await Promise.all([
     listChildrenWithPayer(),
     listClassGroups(),
+    listPayers(),
   ]);
   const activeChildren = children.filter((child) => child.active);
+
+  const families = payers.map((payer) => ({ id: payer.id, displayName: payer.displayName }));
+  const childrenByPayer = activeChildren.reduce<Record<string, { id: string; name: string }[]>>(
+    (map, child) => {
+      if (!child.payerId) return map;
+      const entry = { id: child.id, name: `${child.firstName} ${child.familyName}` };
+      map[child.payerId] = [...(map[child.payerId] ?? []), entry];
+      return map;
+    },
+    {},
+  );
 
   const childrenWithStatus = await Promise.all(
     activeChildren.map(async (child) => {
@@ -83,10 +98,22 @@ export default async function DashboardPage() {
     });
   }
 
+  async function handleRecordPayment(input: CreateReceiptInput) {
+    "use server";
+    await recordPayment(input);
+  }
+
   return (
     <AppShell>
       <div className="yd-stack">
-        <h1 className="yd-title">לוח בקרה</h1>
+        <div className="yd-row" style={{ justifyContent: "space-between" }}>
+          <h1 className="yd-title">לוח בקרה</h1>
+          <RecordPaymentButton
+            families={families}
+            childrenByPayer={childrenByPayer}
+            onRecordPayment={handleRecordPayment}
+          />
+        </div>
         <MissingTotal children={childrenDue} />
         <UnpaidList
           children={childrenDue}

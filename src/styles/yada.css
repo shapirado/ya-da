@@ -237,6 +237,15 @@
 .yd-cover { display: grid; grid-template-columns: auto repeat(3, 1fr); gap: 6px; align-items: center; background: var(--paper-sunk); border-radius: var(--radius-md); padding: 10px 12px; font-size: 13px; }
 .yd-cover .h { color: var(--ink-muted); font-size: 12px; text-align: center; font-weight: 500; }
 .yd-cover .k { font-weight: 500; padding-inline-end: 10px; }
+
+/* ---------- record-payment grid ---------- */
+.yd-payment-grid { display: flex; flex-direction: column; gap: 4px; overflow-x: auto; }
+.yd-payment-grid-row { display: flex; align-items: center; gap: 6px; }
+.yd-payment-grid-row > span:first-child { flex: 0 0 110px; font-size: 13px; }
+.yd-payment-grid-head { color: var(--ink-muted); }
+.yd-payment-grid-head span { flex: 0 0 48px; text-align: center; font-size: 12px; }
+.yd-payment-cell { flex: 0 0 48px; height: 36px; border-radius: var(--radius-md); border: 1px solid var(--line-strong); background: var(--card); display: grid; place-items: center; font-size: 14px; cursor: pointer; }
+.yd-payment-cell.selected { background: var(--teal-soft); color: var(--teal-ink); border-color: var(--teal); }
 .yd-cover .k em { font-style: normal; font-weight: 400; color: var(--ink-muted); font-size: 12px; display: block; }
 .yd-cell { height: 34px; border-radius: 10px; border: 1.5px solid var(--line-strong); background: var(--card); display: grid; place-items: center; font-size: 12px; color: var(--ink-muted); }
 .yd-cell.on { border-color: var(--terracotta); background: var(--terracotta-soft); color: var(--terracotta-ink); font-weight: 600; }

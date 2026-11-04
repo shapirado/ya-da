@@ -88,7 +88,10 @@ export async function createReceipt(input: {
   source: ReceiptSource;
   rawPayload?: unknown;
   method?: string;
-  lines: Array<{ childId?: string; month?: string; amount: number; payerId?: string }>;
+  // amount may be null for a line whose receipt covers multiple
+  // child/month cells: the whole-receipt amount is not auto-split across
+  // them, so each line's amount stays unset until a human resolves it.
+  lines: Array<{ childId?: string; month?: string; amount: number | null; payerId?: string }>;
 }): Promise<Receipt> {
   const status = computeStatus(input.lines);
   const client = getSupabaseClient();
