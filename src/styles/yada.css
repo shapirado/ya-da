@@ -294,3 +294,17 @@
 .yd-login-word { font-family: var(--font-display); font-size: 32px; line-height: 38px; }
 .yd-login-error { color: var(--terracotta-ink); font-size: 14px; text-align: center; margin: 0; }
 .yd-classrow .sw { width: 14px; height: 14px; border-radius: 50% 45% 55% 50%; }
+
+/* ---------- dashboard unpaid-first list ---------- */
+.yd-unpaid-children { display: flex; flex-direction: column; gap: var(--space-3); }
+.yd-unpaid-child-head { display: flex; align-items: center; gap: var(--space-3); width: 100%; padding: var(--space-4); border: none; background: none; cursor: pointer; text-align: start; }
+.yd-unpaid-child-head .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.yd-unpaid-child-head .info .name { font-weight: 500; }
+.yd-unpaid-child-head .amt { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--missing-ink); white-space: nowrap; }
+.yd-unpaid-child-months { display: flex; flex-direction: column; gap: var(--space-2); padding: 0 var(--space-4) var(--space-4); }
+.yd-month-row { border-top: 1px solid var(--line); padding-top: var(--space-3); }
+.yd-month-row-main { justify-content: space-between; }
+.yd-month-row-main .label { font-weight: 500; min-width: 70px; }
+.yd-month-row-main .amt { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--missing-ink); }
+.yd-month-row-form { padding-top: var(--space-2); }
+.yd-fully-paid-summary { justify-content: space-between; color: var(--paid-ink); }
