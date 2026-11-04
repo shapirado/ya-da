@@ -26,6 +26,7 @@ export default function ChildEditor({ child, groups, onUpdateChild, onSetPrice }
     const update: Partial<ChildInput> = {};
     if (firstName !== child.firstName) update.firstName = firstName;
     if (classGroupId !== (child.classGroupId ?? "")) update.classGroupId = classGroupId;
+    if (active !== child.active) update.active = active;
 
     if (Object.keys(update).length > 0) {
       onUpdateChild(child.id, update);

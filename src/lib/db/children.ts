@@ -23,6 +23,7 @@ export type ChildInput = {
   gender: string;
   payerId: string;
   enrollmentStart: string;
+  active?: boolean;
 };
 
 export type ChildPriceRow = {
@@ -133,6 +134,7 @@ export async function updateChild(id: string, input: Partial<ChildInput>): Promi
   if (input.gender !== undefined) update.gender = input.gender;
   if (input.payerId !== undefined) update.payer_id = input.payerId;
   if (input.enrollmentStart !== undefined) update.enrollment_start = input.enrollmentStart;
+  if (input.active !== undefined) update.active = input.active;
 
   const { data, error } = await getSupabaseClient()
     .from("children")

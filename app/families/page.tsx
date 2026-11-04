@@ -22,11 +22,12 @@ function worstStatus(statuses: FamilyStatus[]): FamilyStatus {
 export default async function FamiliesPage() {
   const asOfMonth = currentMonth();
   const children = await listChildrenWithPayer();
+  const activeChildren = children.filter((child) => child.active);
 
   const families = new Map<string, FamilySummary>();
 
   await Promise.all(
-    children.map(async (child) => {
+    activeChildren.map(async (child) => {
       if (!child.payerId || !child.payer) return;
 
       const [prices, lines] = await Promise.all([

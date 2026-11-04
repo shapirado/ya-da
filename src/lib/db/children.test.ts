@@ -58,6 +58,17 @@ describe("children", () => {
 
       const updated = await updateChild(created.id, { familyName: "לוי" });
       expect(updated.familyName).toBe("לוי");
+
+      expect(updated.active).toBe(true);
+      const deactivated = await updateChild(created.id, { active: false });
+      expect(deactivated.active).toBe(false);
+
+      const allAfterDeactivate = await listChildrenWithPayer();
+      const foundAfterDeactivate = allAfterDeactivate.find((c) => c.id === created!.id);
+      expect(foundAfterDeactivate?.active).toBe(false);
+
+      const reactivated = await updateChild(created.id, { active: true });
+      expect(reactivated.active).toBe(true);
     } finally {
       if (created) {
         await getSupabaseClient().from("children").delete().eq("id", created.id);
