@@ -1,6 +1,12 @@
 import { describe, expect, test } from "vitest";
 import { getSupabaseClient } from "./client";
-import { createPayer, listPayers, updatePayer } from "./payers";
+import {
+  createPayer,
+  findPayerByNameOrAlias,
+  listPayers,
+  recordPayerNameAlias,
+  updatePayer,
+} from "./payers";
 
 describe("payers", () => {
   test("createPayer then listPayers round-trips", async () => {
@@ -43,6 +49,49 @@ describe("payers", () => {
       const found = all.find((p) => p.id === created.id);
       expect(found?.displayName).toBe(`${displayName} updated`);
     } finally {
+      await getSupabaseClient().from("payers").delete().eq("id", created.id);
+    }
+  });
+
+  test("findPayerByNameOrAlias matches an exact (trimmed) display_name", async () => {
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const displayName = `צפי ברנר ${suffix}`;
+    const created = await createPayer({ displayName, role: "mom" });
+
+    try {
+      const found = await findPayerByNameOrAlias(`  ${displayName}  `);
+      expect(found?.id).toBe(created.id);
+
+      const noMatch = await findPayerByNameOrAlias(`${displayName}-unrelated`);
+      expect(noMatch).toBeNull();
+    } finally {
+      await getSupabaseClient().from("payers").delete().eq("id", created.id);
+    }
+  });
+
+  test("recordPayerNameAlias lets findPayerByNameOrAlias resolve a raw name, without duplicating on repeat calls", async () => {
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const displayName = `רונית אשל ${suffix}`;
+    const rawName = `רונית א. ${suffix}`;
+    const created = await createPayer({ displayName, role: "mom" });
+
+    try {
+      expect(await findPayerByNameOrAlias(rawName)).toBeNull();
+
+      await recordPayerNameAlias(created.id, rawName);
+      const found = await findPayerByNameOrAlias(rawName);
+      expect(found?.id).toBe(created.id);
+
+      // Calling again for the same raw name must not create a duplicate alias row.
+      await recordPayerNameAlias(created.id, rawName);
+      const { data, error } = await getSupabaseClient()
+        .from("payer_name_aliases")
+        .select("*")
+        .eq("raw_name", rawName);
+      if (error) throw error;
+      expect(data?.length).toBe(1);
+    } finally {
+      await getSupabaseClient().from("payer_name_aliases").delete().eq("raw_name", rawName);
       await getSupabaseClient().from("payers").delete().eq("id", created.id);
     }
   });

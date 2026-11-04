@@ -11,6 +11,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/year", label: "תצוגה שנתית", icon: <YearIcon /> },
   { href: "/families", label: "משפחות", icon: <FamilyIcon /> },
   { href: "/classes", label: "חוגים", icon: <PaletteIcon /> },
+  { href: "/receipts", label: "קבלות לבדיקה", icon: <ReceiptIcon /> },
 ];
 
 export default function AppShell({ children }: { children: ReactNode }) {
@@ -105,6 +106,12 @@ function YearIcon() {
 function FamilyIcon() {
   return icon(
     "M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM16.5 11a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM3.5 20v-1.5A4.5 4.5 0 0 1 8 14h2a4.5 4.5 0 0 1 4.5 4.5V20M15 14.5c2.5 0 5.5 1.2 5.5 3.6V20"
+  );
+}
+
+function ReceiptIcon() {
+  return icon(
+    "M7 3h10a1 1 0 0 1 1 1v16l-2.5-1.5L13 20l-2.5-1.5L8 20l-2.5-1.5L3 20V4a1 1 0 0 1 1-1zM8 8h8M8 12h8M8 16h5"
   );
 }
 

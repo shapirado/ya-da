@@ -80,6 +80,10 @@ function mapReceiptLine(row: ReceiptLineDbRow): ReceiptLine {
 function computeStatus(
   lines: Array<{ childId?: string; month?: string; amount?: number | null }>,
 ): ReceiptStatus {
+  // A receipt with no resolved lines at all (e.g. a payload we couldn't
+  // parse, or a webhook delivery we rejected/skipped processing for) stays
+  // needs_review rather than vacuously "matched".
+  if (lines.length === 0) return "needs_review";
   const anyUnresolved = lines.some(
     (line) => !line.childId || !line.month || line.amount === null || line.amount === undefined,
   );
