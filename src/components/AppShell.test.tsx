@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import AppShell from "./AppShell";
 
 describe("AppShell", () => {
-  it("shows the 4 Hebrew nav labels and the record-payment button", () => {
+  it("shows the 4 Hebrew nav labels", () => {
     render(
       <AppShell>
         <div>תוכן</div>
@@ -14,8 +14,5 @@ describe("AppShell", () => {
     expect(screen.getByText("תצוגה שנתית")).toBeInTheDocument();
     expect(screen.getByText("משפחות")).toBeInTheDocument();
     expect(screen.getByText("חוגים")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /רישום תשלום/ })
-    ).toBeInTheDocument();
   });
 });

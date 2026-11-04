@@ -136,6 +136,57 @@ describe("receipts", () => {
     }
   });
 
+  test("createReceipt with a known child/month but null amount is needs_review (ambiguous multi-cell manual payment)", async () => {
+    let payer: Awaited<ReturnType<typeof makePayer>> | undefined;
+    let classGroupId: string | undefined;
+    let child: Awaited<ReturnType<typeof createChild>> | undefined;
+    let receiptId: string | undefined;
+
+    try {
+      payer = await makePayer("payerR4");
+      classGroupId = await makeClassGroup("groupR4");
+      child = await createChild({
+        firstName: `ילדR4-${Date.now()}`,
+        familyName: "אבני",
+        classGroupId,
+        gender: "boy",
+        payerId: payer.id,
+        enrollmentStart: "2026-09-01",
+      });
+
+      // Simulates a multi-cell dashboard submission: childId/month are known
+      // for each line, but the amount is intentionally left null because the
+      // whole receipt amount is not auto-split across cells.
+      const receipt = await createReceipt({
+        source: "manual",
+        lines: [
+          { childId: child.id, month: "2026-09-01", amount: null, payerId: payer.id },
+          { childId: child.id, month: "2026-10-01", amount: null, payerId: payer.id },
+        ],
+      });
+      receiptId = receipt.id;
+
+      expect(receipt.status).toBe("needs_review");
+
+      const needsReview = await listNeedsReviewReceipts();
+      expect(needsReview.find((r) => r.id === receiptId)).toBeTruthy();
+    } finally {
+      if (receiptId) {
+        await getSupabaseClient().from("receipt_lines").delete().eq("receipt_id", receiptId);
+        await getSupabaseClient().from("receipts").delete().eq("id", receiptId);
+      }
+      if (child) {
+        await getSupabaseClient().from("children").delete().eq("id", child.id);
+      }
+      if (classGroupId) {
+        await getSupabaseClient().from("class_groups").delete().eq("id", classGroupId);
+      }
+      if (payer) {
+        await getSupabaseClient().from("payers").delete().eq("id", payer.id);
+      }
+    }
+  });
+
   test("createReceipt stores method in its own column, not just raw_payload", async () => {
     let payer: Awaited<ReturnType<typeof makePayer>> | undefined;
     let classGroupId: string | undefined;

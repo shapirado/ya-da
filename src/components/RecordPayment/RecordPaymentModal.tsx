@@ -40,6 +40,9 @@ export type RecordPaymentModalProps = {
   initial?: { childId?: string; month?: string; payerId?: string };
   onSubmit: (input: CreateReceiptInput) => void;
   onClose?: () => void;
+  // Error from the caller's submit handler (e.g. the server action failed),
+  // shown alongside this modal's own client-side validation errors.
+  error?: string | null;
 };
 
 export const PAYMENT_METHODS = ["ביט", "פייבוקס", "העברה בנקאית", "מזומן"];
@@ -92,6 +95,7 @@ export default function RecordPaymentModal({
   initial,
   onSubmit,
   onClose,
+  error: submitError,
 }: RecordPaymentModalProps) {
   const showFamilySelect = !payerChildren && !!families && families.length > 0;
 
@@ -303,9 +307,9 @@ export default function RecordPaymentModal({
             />
           </div>
 
-          {error && (
+          {(error || submitError) && (
             <p className="yd-login-error" role="alert">
-              {error}
+              {error || submitError}
             </p>
           )}
         </div>

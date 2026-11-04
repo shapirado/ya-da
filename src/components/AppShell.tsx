@@ -34,13 +34,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
 
-        <div style={{ marginTop: 14 }}>
-          <button type="button" className="yd-btn primary block">
-            <PlusIcon />
-            רישום תשלום
-          </button>
-        </div>
-
         <div className="spacer" />
 
         <div className="yd-user">
@@ -119,8 +112,4 @@ function PaletteIcon() {
   return icon(
     "M12 3.5c-5 0-8.5 3.6-8.5 8 0 3.6 2.9 6.5 6.1 6.5.9 0 1.5-.6 1.5-1.4 0-.4-.2-.7-.4-1-.2-.3-.4-.6-.4-1 0-.8.6-1.4 1.4-1.4h1.6c3 0 5.7-2.4 5.7-5.7 0-2.2-2.7-4-7-4zM7.5 9.5h.1M10 7h.1M14 7h.1M16.5 9.5h.1"
   );
-}
-
-function PlusIcon() {
-  return icon("M12 5v14M5 12h14");
 }

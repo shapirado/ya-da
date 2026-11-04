@@ -78,9 +78,11 @@ function mapReceiptLine(row: ReceiptLineDbRow): ReceiptLine {
 }
 
 function computeStatus(
-  lines: Array<{ childId?: string; month?: string }>,
+  lines: Array<{ childId?: string; month?: string; amount?: number | null }>,
 ): ReceiptStatus {
-  const anyUnresolved = lines.some((line) => !line.childId || !line.month);
+  const anyUnresolved = lines.some(
+    (line) => !line.childId || !line.month || line.amount === null || line.amount === undefined,
+  );
   return anyUnresolved ? "needs_review" : "matched";
 }
 
@@ -165,6 +167,7 @@ export async function resolveReceiptLine(
     (siblingLines as ReceiptLineDbRow[]).map((row) => ({
       childId: row.child_id ?? undefined,
       month: row.month ?? undefined,
+      amount: row.amount,
     })),
   );
 
