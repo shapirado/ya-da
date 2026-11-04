@@ -137,6 +137,7 @@ export default function YearGrid({ families, asOfMonth, onRecordPayment }: YearG
 
   function handleCellClick(family: YearFamily, index: number, month: string) {
     if (month > asOf) return; // future months have no data yet
+    if (familyStatusForMonth(family, month) === null) return; // no due data for any child this month
     const child = childForCell(family, month);
     if (!child) return;
     setError(null);
@@ -179,8 +180,16 @@ export default function YearGrid({ families, asOfMonth, onRecordPayment }: YearG
               {months.map((month) => {
                 const isFuture = month > asOf;
                 const status = isFuture ? null : familyStatusForMonth(family, month);
+                // No child has a computeDueStatus entry for this month (e.g.
+                // not yet enrolled) even though it's at/before asOfMonth —
+                // nothing is actually due, so treat it like a future month:
+                // dashed/muted and non-interactive. This also prevents the
+                // childForCell fallback (family.children[0]) from mis-scoping
+                // RecordPaymentModal to a child with nothing due.
+                const noData = !isFuture && status === null;
+                const nonInteractive = isFuture || noData;
                 const classes = ["yd-ycell"];
-                if (isFuture) {
+                if (nonInteractive) {
                   classes.push("future");
                 } else if (status) {
                   classes.push(status);
@@ -190,10 +199,10 @@ export default function YearGrid({ families, asOfMonth, onRecordPayment }: YearG
                   <td key={month}>
                     <button
                       type="button"
-                      data-testid={`cell-${month}`}
+                      data-testid={`cell-${familyKey(family, index)}-${month}`}
                       aria-label={`${family.payerName} ${monthLabel(month)}`}
                       className={classes.join(" ")}
-                      disabled={isFuture}
+                      disabled={nonInteractive}
                       onClick={() => handleCellClick(family, index, month)}
                     />
                   </td>
