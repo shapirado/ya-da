@@ -21,7 +21,7 @@ export type UnpaidChild = {
 
 export type UnpaidListProps = {
   children: UnpaidChild[];
-  onMarkPaid?: (childId: string, input: MarkPaidInput) => void;
+  onMarkPaid?: (childId: string, input: MarkPaidInput) => Promise<void>;
   fullyPaidCount?: number;
 };
 
@@ -47,7 +47,7 @@ function UnpaidChildCard({
   child: UnpaidChild;
   onMarkPaid?: UnpaidListProps["onMarkPaid"];
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const owedMonths = child.months.filter((month) => month.status !== "paid");
   const total = owedMonths.reduce((sum, month) => sum + (month.due - month.paid), 0);
 
@@ -71,7 +71,7 @@ function UnpaidChildCard({
         <span className="amt">{total.toLocaleString("he-IL")} ₪</span>
         <button
           type="button"
-          aria-label="ערוך"
+          aria-label="ערכי"
           className="yd-btn icon ghost"
           onClick={(event) => event.stopPropagation()}
         >
@@ -96,7 +96,7 @@ function UnpaidChildCard({
               key={month.month}
               month={month.month}
               due={month.due - month.paid}
-              onMarkPaid={(input) => onMarkPaid?.(child.childId, input)}
+              onMarkPaid={(input) => onMarkPaid?.(child.childId, input) ?? Promise.resolve()}
             />
           ))}
         </div>

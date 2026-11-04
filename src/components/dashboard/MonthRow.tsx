@@ -12,8 +12,10 @@ export type MarkPaidInput = {
 export type MonthRowProps = {
   month: string; // 'YYYY-MM-01'
   due: number;
-  onMarkPaid: (input: MarkPaidInput) => void;
+  onMarkPaid: (input: MarkPaidInput) => Promise<void>;
 };
+
+const SUBMIT_ERROR = "לא הצלחנו לשמור את התשלום, נסי שוב";
 
 const HEBREW_MONTHS = [
   "ינואר",
@@ -42,29 +44,38 @@ export default function MonthRow({ month, due, onMarkPaid }: MonthRowProps) {
   const [receiptNumber, setReceiptNumber] = useState("");
   const [method, setMethod] = useState(PAYMENT_METHODS[0]);
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   function handleOpen() {
     setOpen(true);
   }
 
   function handleCancel() {
+    if (submitting) return;
     setOpen(false);
     setError(null);
     setReceiptNumber("");
     setMethod(PAYMENT_METHODS[0]);
   }
 
-  function handleConfirm() {
+  async function handleConfirm() {
     const trimmed = receiptNumber.trim();
     if (!trimmed) {
       setError("יש להזין מספר קבלה");
       return;
     }
     setError(null);
-    onMarkPaid({ month, amount: due, receiptNumber: trimmed, method });
-    setOpen(false);
-    setReceiptNumber("");
-    setMethod(PAYMENT_METHODS[0]);
+    setSubmitting(true);
+    try {
+      await onMarkPaid({ month, amount: due, receiptNumber: trimmed, method });
+      setOpen(false);
+      setReceiptNumber("");
+      setMethod(PAYMENT_METHODS[0]);
+    } catch {
+      setError(SUBMIT_ERROR);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -106,10 +117,20 @@ export default function MonthRow({ month, due, onMarkPaid }: MonthRowProps) {
             </p>
           )}
           <div className="yd-row">
-            <button type="button" className="yd-btn primary sm" onClick={handleConfirm}>
-              אישור
+            <button
+              type="button"
+              className="yd-btn primary sm"
+              onClick={handleConfirm}
+              disabled={submitting}
+            >
+              {submitting ? "שומרת..." : "אישור"}
             </button>
-            <button type="button" className="yd-btn secondary sm" onClick={handleCancel}>
+            <button
+              type="button"
+              className="yd-btn secondary sm"
+              onClick={handleCancel}
+              disabled={submitting}
+            >
               ביטול
             </button>
           </div>

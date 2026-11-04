@@ -1,9 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import UnpaidList from "./UnpaidList";
 
 describe("UnpaidList", () => {
-  test("renders one month-row per missing/partial month, grouped under the right child", () => {
+  test("cards are collapsed by default; expanding reveals one month-row per missing/partial month", () => {
     const statuses = [
       {
         childId: "c1",
@@ -15,6 +15,10 @@ describe("UnpaidList", () => {
       },
     ];
     render(<UnpaidList children={statuses} />);
+    expect(screen.queryByText(/סמני כשולם/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "הרחיבי" }));
+
     expect(screen.getAllByText(/סמני כשולם/)).toHaveLength(2);
     expect(screen.getByText("אוקטובר")).toBeInTheDocument();
     expect(screen.getByText("נובמבר")).toBeInTheDocument();
@@ -32,6 +36,7 @@ describe("UnpaidList", () => {
       },
     ];
     render(<UnpaidList children={statuses} />);
+    fireEvent.click(screen.getByRole("button", { name: "הרחיבי" }));
     expect(screen.getAllByText(/סמני כשולם/)).toHaveLength(1);
   });
 });

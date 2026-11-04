@@ -10,6 +10,7 @@ export type Receipt = {
   source: ReceiptSource;
   rawPayload: unknown;
   status: ReceiptStatus;
+  method: string | null;
 };
 
 export type ReceiptLine = {
@@ -41,6 +42,7 @@ type ReceiptRow = {
   source: ReceiptSource;
   raw_payload: unknown;
   status: ReceiptStatus;
+  method: string | null;
 };
 
 type ReceiptLineDbRow = {
@@ -60,6 +62,7 @@ function mapReceipt(row: ReceiptRow): Receipt {
     source: row.source,
     rawPayload: row.raw_payload,
     status: row.status,
+    method: row.method,
   };
 }
 
@@ -84,6 +87,7 @@ function computeStatus(
 export async function createReceipt(input: {
   source: ReceiptSource;
   rawPayload?: unknown;
+  method?: string;
   lines: Array<{ childId?: string; month?: string; amount: number; payerId?: string }>;
 }): Promise<Receipt> {
   const status = computeStatus(input.lines);
@@ -94,6 +98,7 @@ export async function createReceipt(input: {
     .insert({
       source: input.source,
       raw_payload: input.rawPayload ?? null,
+      method: input.method ?? null,
       status,
     })
     .select()

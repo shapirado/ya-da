@@ -26,8 +26,8 @@ export async function markMonthPaid(
 
   await createReceipt({
     source: "manual",
+    method: input.method,
     rawPayload: {
-      method: input.method,
       receiptNumber: input.receiptNumber,
     },
     lines: [

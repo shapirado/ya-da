@@ -135,4 +135,55 @@ describe("receipts", () => {
       }
     }
   });
+
+  test("createReceipt stores method in its own column, not just raw_payload", async () => {
+    let payer: Awaited<ReturnType<typeof makePayer>> | undefined;
+    let classGroupId: string | undefined;
+    let child: Awaited<ReturnType<typeof createChild>> | undefined;
+    let receiptId: string | undefined;
+
+    try {
+      payer = await makePayer("payerR3");
+      classGroupId = await makeClassGroup("groupR3");
+      child = await createChild({
+        firstName: `ילדR3-${Date.now()}`,
+        familyName: "מזרחי",
+        classGroupId,
+        gender: "boy",
+        payerId: payer.id,
+        enrollmentStart: "2026-09-01",
+      });
+
+      const receipt = await createReceipt({
+        source: "manual",
+        method: "ביט",
+        lines: [{ childId: child.id, month: "2026-09-01", amount: 500, payerId: payer.id }],
+      });
+      receiptId = receipt.id;
+
+      expect(receipt.method).toBe("ביט");
+
+      const { data, error } = await getSupabaseClient()
+        .from("receipts")
+        .select("method")
+        .eq("id", receiptId)
+        .single();
+      if (error) throw error;
+      expect((data as { method: string | null }).method).toBe("ביט");
+    } finally {
+      if (receiptId) {
+        await getSupabaseClient().from("receipt_lines").delete().eq("receipt_id", receiptId);
+        await getSupabaseClient().from("receipts").delete().eq("id", receiptId);
+      }
+      if (child) {
+        await getSupabaseClient().from("children").delete().eq("id", child.id);
+      }
+      if (classGroupId) {
+        await getSupabaseClient().from("class_groups").delete().eq("id", classGroupId);
+      }
+      if (payer) {
+        await getSupabaseClient().from("payers").delete().eq("id", payer.id);
+      }
+    }
+  });
 });
