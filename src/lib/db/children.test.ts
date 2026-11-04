@@ -25,12 +25,16 @@ async function makeClassGroup(label: string) {
 
 describe("children", () => {
   test("createChild then listChildrenWithPayer round-trips, updateChild works", async () => {
-    const payer = await makePayer("payer");
-    const classGroupId = await makeClassGroup("group");
+    let payer: Awaited<ReturnType<typeof makePayer>> | undefined;
+    let classGroupId: string | undefined;
+    let created: Awaited<ReturnType<typeof createChild>> | undefined;
 
     try {
+      payer = await makePayer("payer");
+      classGroupId = await makeClassGroup("group");
+
       const firstName = `ילד-${Date.now()}`;
-      const created = await createChild({
+      created = await createChild({
         firstName,
         familyName: "כהן",
         classGroupId,
@@ -39,44 +43,51 @@ describe("children", () => {
         enrollmentStart: "2026-09-01",
       });
 
-      try {
-        expect(created.id).toBeTruthy();
-        expect(created.firstName).toBe(firstName);
-        expect(created.classGroupId).toBe(classGroupId);
-        expect(created.payerId).toBe(payer.id);
-        expect(created.enrollmentStart).toBe("2026-09-01");
+      expect(created.id).toBeTruthy();
+      expect(created.firstName).toBe(firstName);
+      expect(created.classGroupId).toBe(classGroupId);
+      expect(created.payerId).toBe(payer.id);
+      expect(created.enrollmentStart).toBe("2026-09-01");
 
-        const all = await listChildrenWithPayer();
-        const found = all.find((c) => c.id === created.id);
-        expect(found).toBeTruthy();
-        expect(found?.firstName).toBe(firstName);
-        expect(found?.payer?.id).toBe(payer.id);
-        expect(found?.payer?.displayName).toBe(payer.displayName);
+      const all = await listChildrenWithPayer();
+      const found = all.find((c) => c.id === created!.id);
+      expect(found).toBeTruthy();
+      expect(found?.firstName).toBe(firstName);
+      expect(found?.payer?.id).toBe(payer.id);
+      expect(found?.payer?.displayName).toBe(payer.displayName);
 
-        const updated = await updateChild(created.id, { familyName: "לוי" });
-        expect(updated.familyName).toBe("לוי");
-      } finally {
+      const updated = await updateChild(created.id, { familyName: "לוי" });
+      expect(updated.familyName).toBe("לוי");
+    } finally {
+      if (created) {
         await getSupabaseClient().from("children").delete().eq("id", created.id);
       }
-    } finally {
-      await getSupabaseClient().from("class_groups").delete().eq("id", classGroupId);
-      await getSupabaseClient().from("payers").delete().eq("id", payer.id);
+      if (classGroupId) {
+        await getSupabaseClient().from("class_groups").delete().eq("id", classGroupId);
+      }
+      if (payer) {
+        await getSupabaseClient().from("payers").delete().eq("id", payer.id);
+      }
     }
   });
 
   test("setChildPrice twice inserts two rows, not an overwrite", async () => {
-    const payer = await makePayer("payer2");
-    const classGroupId = await makeClassGroup("group2");
-    const created = await createChild({
-      firstName: `ילד2-${Date.now()}`,
-      familyName: "כהן",
-      classGroupId,
-      gender: "girl",
-      payerId: payer.id,
-      enrollmentStart: "2026-09-01",
-    });
+    let payer: Awaited<ReturnType<typeof makePayer>> | undefined;
+    let classGroupId: string | undefined;
+    let created: Awaited<ReturnType<typeof createChild>> | undefined;
 
     try {
+      payer = await makePayer("payer2");
+      classGroupId = await makeClassGroup("group2");
+      created = await createChild({
+        firstName: `ילד2-${Date.now()}`,
+        familyName: "כהן",
+        classGroupId,
+        gender: "girl",
+        payerId: payer.id,
+        enrollmentStart: "2026-09-01",
+      });
+
       const first = await setChildPrice(created.id, { amount: 500, effectiveFrom: "2026-09-01" });
       const second = await setChildPrice(created.id, { amount: 600, effectiveFrom: "2026-10-01" });
 
@@ -92,10 +103,16 @@ describe("children", () => {
         expect(typeof p.effectiveFrom).toBe("string");
       }
     } finally {
-      await getSupabaseClient().from("child_prices").delete().eq("child_id", created.id);
-      await getSupabaseClient().from("children").delete().eq("id", created.id);
-      await getSupabaseClient().from("class_groups").delete().eq("id", classGroupId);
-      await getSupabaseClient().from("payers").delete().eq("id", payer.id);
+      if (created) {
+        await getSupabaseClient().from("child_prices").delete().eq("child_id", created.id);
+        await getSupabaseClient().from("children").delete().eq("id", created.id);
+      }
+      if (classGroupId) {
+        await getSupabaseClient().from("class_groups").delete().eq("id", classGroupId);
+      }
+      if (payer) {
+        await getSupabaseClient().from("payers").delete().eq("id", payer.id);
+      }
     }
   });
 });

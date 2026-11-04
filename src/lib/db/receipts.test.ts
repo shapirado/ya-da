@@ -25,19 +25,23 @@ async function makeClassGroup(label: string) {
 
 describe("receipts", () => {
   test("createReceipt with fully-resolved lines is matched", async () => {
-    const payer = await makePayer("payerR1");
-    const classGroupId = await makeClassGroup("groupR1");
-    const child = await createChild({
-      firstName: `ילדR1-${Date.now()}`,
-      familyName: "כהן",
-      classGroupId,
-      gender: "boy",
-      payerId: payer.id,
-      enrollmentStart: "2026-09-01",
-    });
-
+    let payer: Awaited<ReturnType<typeof makePayer>> | undefined;
+    let classGroupId: string | undefined;
+    let child: Awaited<ReturnType<typeof createChild>> | undefined;
     let receiptId: string | undefined;
+
     try {
+      payer = await makePayer("payerR1");
+      classGroupId = await makeClassGroup("groupR1");
+      child = await createChild({
+        firstName: `ילדR1-${Date.now()}`,
+        familyName: "כהן",
+        classGroupId,
+        gender: "boy",
+        payerId: payer.id,
+        enrollmentStart: "2026-09-01",
+      });
+
       const receipt = await createReceipt({
         source: "manual",
         lines: [{ childId: child.id, month: "2026-09-01", amount: 500, payerId: payer.id }],
@@ -55,26 +59,36 @@ describe("receipts", () => {
         await getSupabaseClient().from("receipt_lines").delete().eq("receipt_id", receiptId);
         await getSupabaseClient().from("receipts").delete().eq("id", receiptId);
       }
-      await getSupabaseClient().from("children").delete().eq("id", child.id);
-      await getSupabaseClient().from("class_groups").delete().eq("id", classGroupId);
-      await getSupabaseClient().from("payers").delete().eq("id", payer.id);
+      if (child) {
+        await getSupabaseClient().from("children").delete().eq("id", child.id);
+      }
+      if (classGroupId) {
+        await getSupabaseClient().from("class_groups").delete().eq("id", classGroupId);
+      }
+      if (payer) {
+        await getSupabaseClient().from("payers").delete().eq("id", payer.id);
+      }
     }
   });
 
   test("createReceipt with an unresolved line is needs_review; resolveReceiptLine flips it to matched", async () => {
-    const payer = await makePayer("payerR2");
-    const classGroupId = await makeClassGroup("groupR2");
-    const child = await createChild({
-      firstName: `ילדR2-${Date.now()}`,
-      familyName: "לוי",
-      classGroupId,
-      gender: "girl",
-      payerId: payer.id,
-      enrollmentStart: "2026-09-01",
-    });
-
+    let payer: Awaited<ReturnType<typeof makePayer>> | undefined;
+    let classGroupId: string | undefined;
+    let child: Awaited<ReturnType<typeof createChild>> | undefined;
     let receiptId: string | undefined;
+
     try {
+      payer = await makePayer("payerR2");
+      classGroupId = await makeClassGroup("groupR2");
+      child = await createChild({
+        firstName: `ילדR2-${Date.now()}`,
+        familyName: "לוי",
+        classGroupId,
+        gender: "girl",
+        payerId: payer.id,
+        enrollmentStart: "2026-09-01",
+      });
+
       const receipt = await createReceipt({
         source: "manual",
         lines: [
@@ -110,9 +124,15 @@ describe("receipts", () => {
         await getSupabaseClient().from("receipt_lines").delete().eq("receipt_id", receiptId);
         await getSupabaseClient().from("receipts").delete().eq("id", receiptId);
       }
-      await getSupabaseClient().from("children").delete().eq("id", child.id);
-      await getSupabaseClient().from("class_groups").delete().eq("id", classGroupId);
-      await getSupabaseClient().from("payers").delete().eq("id", payer.id);
+      if (child) {
+        await getSupabaseClient().from("children").delete().eq("id", child.id);
+      }
+      if (classGroupId) {
+        await getSupabaseClient().from("class_groups").delete().eq("id", classGroupId);
+      }
+      if (payer) {
+        await getSupabaseClient().from("payers").delete().eq("id", payer.id);
+      }
     }
   });
 });
