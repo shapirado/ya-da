@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { DatePicker } from "antd";
+import dayjs from "dayjs";
 import type { Child, ChildInput } from "@/src/lib/db/children";
 import type { ClassGroup } from "@/src/lib/db/classGroups";
 import SaveButton from "../SaveButton";
@@ -8,6 +10,10 @@ import SaveButton from "../SaveButton";
 export type ChildEditorProps = {
   child: Child;
   groups: ClassGroup[];
+  // The amount currently in effect (null when no price has been set yet) —
+  // shown read-only so "what does this child pay right now" is answered at
+  // a glance, since the amount field below is for entering a NEW rate.
+  currentPrice: number | null;
   onUpdateChild: (id: string, input: Partial<ChildInput>) => void | Promise<void>;
   onSetPrice: (childId: string, input: { amount: number; effectiveFrom: string }) => void | Promise<void>;
 };
@@ -29,7 +35,13 @@ export const GENDER_OPTIONS: Array<{ value: string; label: string; icon: string 
   { value: "בת", label: "ילדה", icon: "♀" },
 ];
 
-export default function ChildEditor({ child, groups, onUpdateChild, onSetPrice }: ChildEditorProps) {
+export default function ChildEditor({
+  child,
+  groups,
+  currentPrice,
+  onUpdateChild,
+  onSetPrice,
+}: ChildEditorProps) {
   const [firstName, setFirstName] = useState(child.firstName);
   const [classGroupId, setClassGroupId] = useState(child.classGroupId ?? "");
   const [gender, setGender] = useState(child.gender ?? "");
@@ -109,9 +121,15 @@ export default function ChildEditor({ child, groups, onUpdateChild, onSetPrice }
         </div>
       </div>
 
+      <div className="yd-field">
+        <span className="small muted">
+          תעריף נוכחי: {currentPrice !== null ? `${currentPrice.toLocaleString("he-IL")} ₪` : "לא נקבע"}
+        </span>
+      </div>
+
       <div className="yd-row">
         <div className="yd-field" style={{ flex: 1 }}>
-          <label htmlFor={`child-amount-${child.id}`}>תעריף חודשי</label>
+          <label htmlFor={`child-amount-${child.id}`}>תעריף חדש</label>
           <input
             id={`child-amount-${child.id}`}
             className="yd-input"
@@ -124,12 +142,13 @@ export default function ChildEditor({ child, groups, onUpdateChild, onSetPrice }
 
         <div className="yd-field" style={{ flex: 1 }}>
           <label htmlFor={`child-effective-${child.id}`}>החל מ</label>
-          <input
+          <DatePicker
             id={`child-effective-${child.id}`}
-            className="yd-input"
-            type="date"
-            value={effectiveFrom}
-            onChange={(event) => setEffectiveFrom(event.target.value)}
+            style={{ width: "100%", height: 44 }}
+            value={effectiveFrom ? dayjs(effectiveFrom) : null}
+            onChange={(date) => setEffectiveFrom(date ? date.format("YYYY-MM-DD") : "")}
+            format="DD/MM/YYYY"
+            placeholder="בחרי תאריך"
           />
         </div>
       </div>

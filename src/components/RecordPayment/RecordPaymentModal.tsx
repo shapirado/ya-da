@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { DatePicker } from "antd";
+import dayjs from "dayjs";
 
 export type RecordPaymentChild = {
   id: string;
@@ -37,7 +39,17 @@ export type RecordPaymentModalProps = {
   childrenByPayer?: Record<string, RecordPaymentChild[]>;
   payerChildren?: RecordPaymentChild[];
   months?: string[];
-  initial?: { childId?: string; month?: string; payerId?: string };
+  initial?: {
+    childId?: string;
+    month?: string;
+    payerId?: string;
+    // Pre-fills from a source receipt (e.g. a Morning webhook payload)
+    // being resolved into a manual payment — the amount, date (ddmmyyyy)
+    // and Morning receipt/document number it already carried.
+    amount?: number;
+    date?: string;
+    receiptNumber?: string;
+  };
   onSubmit: (input: CreateReceiptInput) => void;
   onClose?: () => void;
   // Error from the caller's submit handler (e.g. the server action failed),
@@ -84,6 +96,13 @@ function todayDdmmyyyy(): string {
   return `${dd}${mm}${now.getFullYear()}`;
 }
 
+function ddmmyyyyToDayjs(value: string) {
+  const match = value.match(/^(\d{2})(\d{2})(\d{4})$/);
+  if (!match) return null;
+  const [, dd, mm, yyyy] = match;
+  return dayjs(`${yyyy}-${mm}-${dd}`, "YYYY-MM-DD");
+}
+
 const ERROR_NO_CELLS = "יש לבחור חודש אחד לפחות";
 const ERROR_NO_AMOUNT = "יש להזין סכום";
 
@@ -112,11 +131,11 @@ export default function RecordPaymentModal({
     }
     return {};
   });
-  const [amount, setAmount] = useState("");
-  const [date, setDate] = useState(todayDdmmyyyy());
+  const [amount, setAmount] = useState(initial?.amount !== undefined ? String(initial.amount) : "");
+  const [date, setDate] = useState(initial?.date ?? todayDdmmyyyy());
   const [method, setMethod] = useState(PAYMENT_METHODS[0]);
   const [paidBy, setPaidBy] = useState("");
-  const [receiptNumber, setReceiptNumber] = useState("");
+  const [receiptNumber, setReceiptNumber] = useState(initial?.receiptNumber ?? "");
   const [error, setError] = useState<string | null>(null);
 
   function handleFamilyChange(payerId: string) {
@@ -255,13 +274,14 @@ export default function RecordPaymentModal({
 
           <div className="yd-field">
             <label htmlFor="record-payment-date">תאריך</label>
-            <input
+            <DatePicker
               id="record-payment-date"
-              className="yd-input"
-              type="text"
-              placeholder="יום/חודש/שנה"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
+              style={{ width: "100%", height: 44 }}
+              value={ddmmyyyyToDayjs(date)}
+              onChange={(value) => setDate(value ? value.format("DDMMYYYY") : "")}
+              format="DD/MM/YYYY"
+              placeholder="בחרי תאריך"
+              allowClear={false}
               aria-label="תאריך"
             />
           </div>

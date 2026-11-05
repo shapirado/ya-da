@@ -9,6 +9,9 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./vitest.setup.ts"],
+    // antd is a large dependency; the first test file in a worker to touch
+    // it can take longer than the 5s default to transform/evaluate.
+    testTimeout: 20000,
   },
   resolve: {
     alias: {

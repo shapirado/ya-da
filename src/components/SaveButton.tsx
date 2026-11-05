@@ -35,7 +35,7 @@ export default function SaveButton({ onSave, label = "שמירה", className = "
         </span>
       )}
       <button type="button" className={className} onClick={handleClick} disabled={status === "saving"}>
-        {status === "saving" ? "שומר..." : label}
+        {status === "saving" ? "שומרת..." : label}
       </button>
     </span>
   );

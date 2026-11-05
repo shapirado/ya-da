@@ -24,6 +24,7 @@ export type DashboardRow = {
   payerPhone?: string;
   statuses: UnpaidMonthStatus[];
   history: ReceiptLineRow[];
+  currentPrice: number | null;
   fullChild: Child;
 };
 
@@ -242,6 +243,7 @@ export default function DashboardBoard({
                     key={editingRow.childId}
                     child={editingRow.fullChild}
                     groups={classGroups}
+                    currentPrice={editingRow.currentPrice}
                     onUpdateChild={onUpdateChild}
                     onSetPrice={onSetPrice}
                   />

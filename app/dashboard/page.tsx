@@ -3,13 +3,15 @@ import { type UnpaidChild, type UnpaidMonthStatus } from "@/src/components/dashb
 import DashboardBoard, { type DashboardRow } from "@/src/components/dashboard/DashboardBoard";
 import RecordPaymentButton from "@/src/components/dashboard/RecordPaymentButton";
 import NewStudentButton from "@/src/components/dashboard/NewStudentButton";
+import ReceiptReviewList from "@/src/components/receipts/ReceiptReviewList";
 import type { CreateReceiptInput } from "@/src/components/RecordPayment/RecordPaymentModal";
 import type { CreateStudentInput } from "@/src/components/dashboard/NewStudentModal";
 import { listChildPrices, listChildrenWithPayer } from "@/src/lib/db/children";
 import { listClassGroups } from "@/src/lib/db/classGroups";
 import { listPayers } from "@/src/lib/db/payers";
-import { listReceiptLinesForChild } from "@/src/lib/db/receipts";
-import { computeDueStatus } from "@/src/lib/dues";
+import { listReceiptLinesForChild, listNeedsReviewReceipts } from "@/src/lib/db/receipts";
+import { computeDueStatus, priceForMonth } from "@/src/lib/dues";
+import { buildReceiptReviewItems } from "@/src/lib/receiptReviewItems";
 import {
   markMonthPaid,
   recordPayment,
@@ -19,6 +21,7 @@ import {
   createStudent,
   type MarkMonthPaidInput,
 } from "./actions";
+import { resolveReceipt, dismissReceipt, type ResolveReceiptLineInput } from "../receipts/actions";
 
 // Always show today's live status rather than a build-time snapshot.
 export const dynamic = "force-dynamic";
@@ -42,10 +45,11 @@ export default async function DashboardPage() {
   const asOfMonth = currentMonth();
   const currentMonthName = MONTH_NAMES_HEBREW[new Date().getMonth()];
 
-  const [children, classGroups, payers] = await Promise.all([
+  const [children, classGroups, payers, needsReviewReceipts] = await Promise.all([
     listChildrenWithPayer(),
     listClassGroups(),
     listPayers(),
+    listNeedsReviewReceipts(),
   ]);
 
   const activeChildren = children.filter((child) => child.active);
@@ -92,6 +96,7 @@ export default async function DashboardPage() {
         payerName: child.payer?.displayName,
         payerRelation,
         payerPhone: child.payer?.phone ?? undefined,
+        currentPrice: priceForMonth(prices, asOfMonth),
       };
     }),
   );
@@ -128,8 +133,11 @@ const childrenDue: UnpaidChild[] = childrenWithStatus
     payerPhone: entry.payerPhone,
     statuses: entry.statuses,
     history: entry.history,
+    currentPrice: entry.currentPrice,
     fullChild: entry.child,
   }));
+
+  const needsReviewItems = buildReceiptReviewItems(needsReviewReceipts);
 
   const monthsWithData = Array.from(
     new Set(childrenWithStatus.flatMap((entry) => entry.statuses.map((status) => status.month))),
@@ -159,6 +167,16 @@ const childrenDue: UnpaidChild[] = childrenWithStatus
   async function handleCreateStudent(input: CreateStudentInput) {
     "use server";
     await createStudent(input);
+  }
+
+  async function handleResolveReceipt(lineId: string, input: ResolveReceiptLineInput) {
+    "use server";
+    await resolveReceipt(lineId, input);
+  }
+
+  async function handleDismissReceipt(receiptId: string) {
+    "use server";
+    await dismissReceipt(receiptId);
   }
 
   return (
@@ -193,6 +211,22 @@ const childrenDue: UnpaidChild[] = childrenWithStatus
             />
           </div>
         </header>
+
+        {/* Receipts-to-review queue (only when something needs a look) */}
+        {needsReviewItems.length > 0 && (
+          <section className="yd-section" style={{ marginBottom: "var(--space-5)" }}>
+            <div className="yd-section-head">
+              <h2 className="yd-heading">קבלות לבדיקה ({needsReviewItems.length})</h2>
+            </div>
+            <ReceiptReviewList
+              items={needsReviewItems}
+              families={families}
+              childrenByPayer={childrenByPayer}
+              onResolve={handleResolveReceipt}
+              onDismiss={handleDismissReceipt}
+            />
+          </section>
+        )}
 
         {/* 3-Card Summary Deck */}
         <section className="yd-summary" style={{ gridTemplateColumns: "repeat(3, 1fr)", marginBottom: "var(--space-5)" }}>

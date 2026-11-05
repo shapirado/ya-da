@@ -20,13 +20,32 @@ const sampleGroups: ClassGroup[] = [
   { id: "group-2", day: "רביעי", time: "17:00", color: "sage" },
 ];
 
+function setDatePickerValue(input: HTMLElement, ddmmyyyy: string) {
+  fireEvent.change(input, { target: { value: ddmmyyyy } });
+  fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+}
+
 describe("ChildEditor", () => {
+  test("shows the currently effective price read-only", () => {
+    render(
+      <ChildEditor
+        child={sampleChild}
+        groups={sampleGroups}
+        currentPrice={330}
+        onUpdateChild={vi.fn()}
+        onSetPrice={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/תעריף נוכחי/)).toHaveTextContent("330");
+  });
+
   test("changing the class group select calls onUpdateChild with the new group id", async () => {
     const onUpdateChild = vi.fn();
     render(
       <ChildEditor
         child={sampleChild}
         groups={sampleGroups}
+        currentPrice={null}
         onUpdateChild={onUpdateChild}
         onSetPrice={vi.fn()}
       />,
@@ -45,12 +64,13 @@ describe("ChildEditor", () => {
       <ChildEditor
         child={sampleChild}
         groups={sampleGroups}
+        currentPrice={null}
         onUpdateChild={vi.fn()}
         onSetPrice={onSetPrice}
       />,
     );
-    fireEvent.change(screen.getByLabelText(/תעריף חודשי/), { target: { value: "330" } });
-    fireEvent.change(screen.getByLabelText(/החל מ/), { target: { value: "2027-01-01" } });
+    fireEvent.change(screen.getByLabelText(/תעריף חדש/), { target: { value: "330" } });
+    setDatePickerValue(screen.getByLabelText(/החל מ/), "01/01/2027");
     fireEvent.click(screen.getByText("שמירה"));
     expect(onSetPrice).toHaveBeenCalledWith(sampleChild.id, { amount: 330, effectiveFrom: "2027-01-01" });
   });
@@ -61,12 +81,13 @@ describe("ChildEditor", () => {
       <ChildEditor
         child={sampleChild}
         groups={sampleGroups}
+        currentPrice={null}
         onUpdateChild={vi.fn()}
         onSetPrice={onSetPrice}
       />,
     );
-    fireEvent.change(screen.getByLabelText(/תעריף חודשי/), { target: { value: "330" } });
-    fireEvent.change(screen.getByLabelText(/החל מ/), { target: { value: "2027-01-15" } });
+    fireEvent.change(screen.getByLabelText(/תעריף חדש/), { target: { value: "330" } });
+    setDatePickerValue(screen.getByLabelText(/החל מ/), "15/01/2027");
     fireEvent.click(screen.getByText("שמירה"));
     expect(onSetPrice).toHaveBeenCalledWith(sampleChild.id, { amount: 330, effectiveFrom: "2027-01-01" });
   });

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { DatePicker } from "antd";
+import dayjs from "dayjs";
 import { GENDER_OPTIONS, groupLabel } from "../families/ChildEditor";
 import type { ClassGroup } from "@/src/lib/db/classGroups";
 
@@ -252,12 +254,14 @@ export default function NewStudentModal({
           <div className="yd-row">
             <div className="yd-field" style={{ flex: 1 }}>
               <label htmlFor="new-student-enrollment">תאריך התחלה</label>
-              <input
+              <DatePicker
                 id="new-student-enrollment"
-                className="yd-input"
-                type="date"
-                value={enrollmentStart}
-                onChange={(event) => setEnrollmentStart(event.target.value)}
+                style={{ width: "100%", height: 44 }}
+                value={enrollmentStart ? dayjs(enrollmentStart) : null}
+                onChange={(date) => setEnrollmentStart(date ? date.format("YYYY-MM-DD") : "")}
+                format="DD/MM/YYYY"
+                placeholder="בחרי תאריך"
+                allowClear={false}
               />
             </div>
             <div className="yd-field" style={{ flex: 1 }}>

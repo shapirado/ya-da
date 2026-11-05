@@ -30,10 +30,12 @@ export async function resolveReceipt(lineId: string, input: ResolveReceiptLineIn
   }
 
   revalidatePath("/receipts");
+  revalidatePath("/dashboard");
 }
 
 // "Mark handled" for a needs_review receipt with no lines to resolve.
 export async function dismissReceipt(receiptId: string): Promise<void> {
   await dismissEmptyReceipt(receiptId);
   revalidatePath("/receipts");
+  revalidatePath("/dashboard");
 }

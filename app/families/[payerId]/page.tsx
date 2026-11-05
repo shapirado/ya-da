@@ -8,7 +8,7 @@ import { listChildPrices, listChildrenWithPayer } from "@/src/lib/db/children";
 import { listClassGroups } from "@/src/lib/db/classGroups";
 import { listReceiptLinesForChild } from "@/src/lib/db/receipts";
 import { monthLabel } from "@/src/components/dashboard/MonthRow";
-import { computeDueStatus } from "@/src/lib/dues";
+import { computeDueStatus, priceForMonth } from "@/src/lib/dues";
 import type { ReminderItem } from "@/src/lib/whatsapp";
 import { saveChild, savePrice, savePayer } from "../actions";
 
@@ -65,7 +65,8 @@ export default async function FamilyDetailPage({
         asOfMonth,
       );
       const owedMonths = statuses.filter((status) => status.status !== "paid");
-      return { child, history, className, owedMonths };
+      const currentPrice = priceForMonth(prices, asOfMonth);
+      return { child, history, className, owedMonths, currentPrice };
     }),
   );
 
@@ -102,11 +103,12 @@ export default async function FamilyDetailPage({
         <h2 className="small muted" style={{ marginTop: 8 }}>
           ילדים
         </h2>
-        {childrenWithHistory.map(({ child, history }) => (
+        {childrenWithHistory.map(({ child, history, currentPrice }) => (
           <div key={child.id} className="yd-stack">
             <ChildEditor
               child={child}
               groups={classGroups}
+              currentPrice={currentPrice}
               onUpdateChild={saveChild}
               onSetPrice={savePrice}
             />

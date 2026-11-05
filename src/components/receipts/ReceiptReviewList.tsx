@@ -27,6 +27,12 @@ export type ReceiptReviewItem = {
   // The whole-receipt total as recorded (manual entry's amount / Morning
   // document's total), when known. Used to pre-fill the per-line split.
   totalAmount?: number;
+  // The source receipt's own date (already ddmmyyyy, like
+  // CreateReceiptInput.date) and document/receipt number, when known —
+  // pre-fill the manual "record payment" form so nothing already on the
+  // Morning webhook payload (or a prior manual entry) needs retyping.
+  documentDate?: string;
+  documentNumber?: string;
 };
 
 export type ResolveLineInput = {
@@ -393,6 +399,11 @@ export default function ReceiptReviewList({
                 families={families}
                 childrenByPayer={childrenByPayer}
                 months={knownMonths.length > 0 ? knownMonths : undefined}
+                initial={{
+                  amount: item.totalAmount,
+                  date: item.documentDate,
+                  receiptNumber: item.documentNumber,
+                }}
                 onSubmit={(input) => handleModalSubmit(item, input)}
                 onClose={() => setOpenReceiptId(null)}
                 error={error}

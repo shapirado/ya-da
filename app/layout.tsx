@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Heebo } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import AntdProvider from "@/src/components/AntdProvider";
 import "./globals.css";
 
 const heebo = Heebo({
@@ -25,7 +26,7 @@ export default function RootLayout({
       <html lang="he" dir="rtl">
         {/* Pass both className and variable directly */}
         <body className={`${heebo.variable} ${heebo.className}`}>
-          {children}
+          <AntdProvider>{children}</AntdProvider>
         </body>
       </html>
     </ClerkProvider>

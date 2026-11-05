@@ -22,7 +22,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <Mark size={42} />
           <div>
             <div className="word">Ya-Da</div>
-            <div className="sub">הסטודיו של דליה</div>
+            <div className="sub">סטודיו ידיים</div>
           </div>
         </div>
 
