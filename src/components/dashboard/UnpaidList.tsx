@@ -14,6 +14,7 @@ export type UnpaidChild = {
   childId: string;
   childName: string;
   className?: string;
+  classColor?: string;
   payerName?: string;
   payerRelation?: string;
   months: UnpaidMonthStatus[];
@@ -71,7 +72,7 @@ function UnpaidChildCard({
         <span className="amt">{total.toLocaleString("he-IL")} ₪</span>
         <button
           type="button"
-          aria-label="ערכי"
+          aria-label="עריכה"
           className="yd-btn icon ghost"
           onClick={(event) => event.stopPropagation()}
         >
