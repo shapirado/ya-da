@@ -24,7 +24,7 @@ export default function SignInPage() {
       .authenticateWithRedirect({
         strategy: "oauth_google",
         redirectUrl: "/sign-in/sso-callback",
-        redirectUrlComplete: "/",
+        redirectUrlComplete: "/dashboard",
       })
       .catch(() => {
         setError(GENERIC_ERROR);

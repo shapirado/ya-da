@@ -91,4 +91,15 @@ describe("sign-in page", () => {
       resolveRedirect();
     });
   });
+
+  it("sends the user straight to /dashboard after Google sign-in completes", async () => {
+    authenticateWithRedirect.mockResolvedValueOnce(undefined);
+    render(<SignInPage />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /google/i }));
+    });
+    expect(authenticateWithRedirect).toHaveBeenCalledWith(
+      expect.objectContaining({ redirectUrlComplete: "/dashboard" })
+    );
+  });
 });

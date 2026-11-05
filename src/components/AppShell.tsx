@@ -7,7 +7,7 @@ type NavItem = {
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "לוח בקרה", icon: <HomeIcon /> },
+  { href: "/dashboard", label: "לוח בקרה", icon: <HomeIcon /> },
   { href: "/year", label: "תצוגה שנתית", icon: <YearIcon /> },
   { href: "/families", label: "משפחות", icon: <FamilyIcon /> },
   { href: "/classes", label: "חוגים", icon: <PaletteIcon /> },

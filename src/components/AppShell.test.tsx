@@ -15,4 +15,14 @@ describe("AppShell", () => {
     expect(screen.getByText("משפחות")).toBeInTheDocument();
     expect(screen.getByText("חוגים")).toBeInTheDocument();
   });
+
+  it("links the dashboard nav item straight to /dashboard", () => {
+    render(
+      <AppShell>
+        <div>תוכן</div>
+      </AppShell>
+    );
+
+    expect(screen.getByText("לוח בקרה").closest("a")).toHaveAttribute("href", "/dashboard");
+  });
 });
