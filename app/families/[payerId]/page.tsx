@@ -73,14 +73,17 @@ export default async function FamilyDetailPage({
   );
 
   const parentFirstName = payer.displayName.trim().split(/\s+/)[0] ?? payer.displayName;
-  const reminderItems: ReminderItem[] = childrenWithHistory
+  // Like the dashboard / families list / year view, only active children
+  // count toward what's owed; inactive ones still show in the editor below.
+  const activeChildrenWithHistory = childrenWithHistory.filter(({ child }) => child.active);
+  const reminderItems: ReminderItem[] = activeChildrenWithHistory
     .filter(({ owedMonths }) => owedMonths.length > 0)
     .map(({ child, className, owedMonths }) => ({
       childName: `${child.firstName} ${child.familyName}`,
       className,
       monthsOwed: owedMonths.map((status) => monthLabel(status.month)),
     }));
-  const reminderTotal = childrenWithHistory.reduce(
+  const reminderTotal = activeChildrenWithHistory.reduce(
     (sum, { owedMonths }) => sum + owedMonths.reduce((s, status) => s + (status.due - status.paid), 0),
     0,
   );

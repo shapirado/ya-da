@@ -1,9 +1,15 @@
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { ChildWithPayer } from "@/src/lib/db/children";
 import type { ReceiptLineRow } from "@/src/lib/db/receipts";
 
-const payer = { id: "payer-1", displayName: "צפי ברנר", role: "mom", phone: null, email: null };
+const payer: { id: string; displayName: string; role: string; phone: string | null; email: string | null } = {
+  id: "payer-1",
+  displayName: "צפי ברנר",
+  role: "mom",
+  phone: null,
+  email: null,
+};
 
 const data: {
   children: ChildWithPayer[];
@@ -54,6 +60,11 @@ describe("family detail page", () => {
   beforeEach(() => {
     data.children = [];
     data.linesByChild = {};
+    payer.phone = null;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   test("renders without crashing when a payment-history line has a null amount or a null month", async () => {
@@ -73,5 +84,31 @@ describe("family detail page", () => {
     expect(screen.getAllByText("טרם שויך")).toHaveLength(2);
     expect(screen.getByText("ספטמבר")).toBeInTheDocument();
     expect(screen.getByText(/אוקטובר/)).toBeInTheDocument();
+  });
+
+  test("the WhatsApp reminder only covers active children; inactive ones still get an editor", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-15T12:00:00"));
+    payer.phone = "0521234567";
+    data.children = [
+      child("c-active", "עמליה"),
+      child("c-inactive", "יואב", { active: false }),
+    ];
+    // Neither child has paid anything since enrollment (2026-09-01): each
+    // owes Sep-Nov at 300 = 900.
+
+    const { container } = await renderPage();
+
+    const link = container.querySelector('a[href*="wa.me"]') as HTMLAnchorElement;
+    expect(link).toBeTruthy();
+    const message = decodeURIComponent(link.href.split("text=")[1] ?? "");
+    expect(message).toContain("עמליה");
+    expect(message).not.toContain("יואב");
+    expect(message).toContain(`${(900).toLocaleString("he-IL")} ₪`);
+    expect(message).not.toContain(`${(1800).toLocaleString("he-IL")} ₪`);
+
+    // Both children still appear in the editor section.
+    expect(screen.getByDisplayValue("עמליה")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("יואב")).toBeInTheDocument();
   });
 });
