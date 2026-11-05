@@ -41,7 +41,8 @@ export async function listPayers(): Promise<Payer[]> {
 
 export async function createPayer(input: {
   displayName: string;
-  role: string;
+  // null = not specified (e.g. a bulk import that can't know mom/dad).
+  role: string | null;
   phone?: string;
   email?: string;
 }): Promise<Payer> {

@@ -2,6 +2,8 @@ import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
+  assertSafeToImport,
+  findUnmatchedBalanceRows,
   parseBalanceSheet,
   parseRoster,
   getDistinctClassCombos,
@@ -125,5 +127,37 @@ describe("parseBalanceSheet", () => {
     const row = result.find((r) => r.firstName === "אוריה");
     expect(row?.familyName).toBe("פוגל");
     expect(row?.receiptNumber).toBe("1042");
+  });
+});
+
+describe("assertSafeToImport", () => {
+  test("allows an import into an empty database", () => {
+    expect(() => assertSafeToImport({ payers: 0, children: 0 })).not.toThrow();
+  });
+
+  test("refuses when payers or children already exist (a re-run would duplicate them)", () => {
+    expect(() => assertSafeToImport({ payers: 3, children: 0 })).toThrow(/Refusing to import/);
+    expect(() => assertSafeToImport({ payers: 0, children: 5 })).toThrow(/Refusing to import/);
+  });
+});
+
+describe("findUnmatchedBalanceRows", () => {
+  test("returns only balance rows that match no roster child", async () => {
+    const roster = await parseRoster(readFixture("roster.csv"));
+    const balance = await parseBalanceSheet(
+      `${readFixture("balance-oct.csv")}שירה,אלון,שולם,1099\n`,
+      "2026-10-01",
+    );
+
+    const unmatched = findUnmatchedBalanceRows(roster, balance);
+    expect(unmatched).toEqual([
+      { firstName: "שירה", familyName: "אלון", status: "שולם", receiptNumber: "1099", month: "2026-10-01" },
+    ]);
+  });
+
+  test("the fixture balance sheets fully match the fixture roster", async () => {
+    const roster = await parseRoster(readFixture("roster.csv"));
+    const balance = await parseBalanceSheet(readFixture("balance-oct.csv"), "2026-10-01");
+    expect(findUnmatchedBalanceRows(roster, balance)).toEqual([]);
   });
 });

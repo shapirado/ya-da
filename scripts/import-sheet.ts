@@ -21,6 +21,7 @@ import { createPayer } from "../src/lib/db/payers";
 import { createChild, setChildPrice } from "../src/lib/db/children";
 import { listClassGroups, updateClassGroup, type ClassGroup } from "../src/lib/db/classGroups";
 import { createReceipt } from "../src/lib/db/receipts";
+import { getSupabaseClient } from "../src/lib/db/client";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -242,6 +243,34 @@ export function planClassGroupAssignments(
   return plan;
 }
 
+// Pre-flight guard: this is a one-shot import into production data. If any
+// payers or children already exist, it has most likely run before — a
+// second run would duplicate every family — so refuse before writing.
+export function assertSafeToImport(counts: { payers: number; children: number }): void {
+  if (counts.payers > 0 || counts.children > 0) {
+    throw new Error(
+      `[import-sheet] Refusing to import: the database already has ${counts.payers} payers and ` +
+        `${counts.children} children. This script is a one-time import into an empty database ` +
+        `(re-running it would duplicate every family) — aborting without writing anything.`,
+    );
+  }
+}
+
+async function countRows(table: "payers" | "children"): Promise<number> {
+  const { count, error } = await getSupabaseClient()
+    .from(table)
+    .select("id", { count: "exact", head: true });
+  if (error) throw error;
+  return count ?? 0;
+}
+
+// Balance-sheet rows whose (first name, family name) match no roster child.
+// These can't be imported (there's no child to attach them to), so main()
+// lists them rather than dropping them silently.
+export function findUnmatchedBalanceRows(roster: RosterRow[], balanceRows: BalanceRow[]): BalanceRow[] {
+  return balanceRows.filter((row) => !roster.some((child) => sameChild(row, child)));
+}
+
 async function resolveClassGroups(
   roster: RosterRow[],
 ): Promise<Map<string, string>> {
@@ -266,6 +295,11 @@ export async function main(): Promise<void> {
   const balanceNov = await parseBalanceSheet(readDataFile("balance-nov.csv"), "2026-11-01");
   const allBalanceRows = [...balanceOct, ...balanceNov];
 
+  // Before ANY write (resolveClassGroups below already updates rows).
+  assertSafeToImport({ payers: await countRows("payers"), children: await countRows("children") });
+
+  const unmatchedBalanceRows = findUnmatchedBalanceRows(roster, allBalanceRows);
+
   const comboToGroupId = await resolveClassGroups(roster);
 
   const payerIdByFamilyName = new Map<string, string>();
@@ -279,7 +313,9 @@ export async function main(): Promise<void> {
 
     let payerId = payerIdByFamilyName.get(child.familyName);
     if (!payerId) {
-      const payer = await createPayer({ displayName: child.familyName, role: "parent" });
+      // The sheet doesn't say whether the payer is mom or dad: leave the
+      // role unspecified (null) for the user to set in the families page.
+      const payer = await createPayer({ displayName: child.familyName, role: null });
       payerId = payer.id;
       payerIdByFamilyName.set(child.familyName, payerId);
       payersCreated++;
@@ -323,6 +359,17 @@ export async function main(): Promise<void> {
   console.log(`  children created: ${childrenCreated}`);
   console.log(`  receipts created: ${receiptsCreated}`);
   console.log(`  all children defaulted to the ${DEFAULT_PRICE} discount price — correct any that should be full price.`);
+  if (unmatchedBalanceRows.length > 0) {
+    console.log(
+      `  ${unmatchedBalanceRows.length} balance-sheet rows matched no roster child and were NOT imported:`,
+    );
+    for (const row of unmatchedBalanceRows) {
+      const receipt = row.receiptNumber ? `, קבלה ${row.receiptNumber}` : "";
+      console.log(
+        `    - "${row.firstName}" "${row.familyName}" (${row.month.slice(0, 7)}, ${row.status}${receipt})`,
+      );
+    }
+  }
   if (flaggedInferredRows.length > 0) {
     console.log("  family names inferred from the row above (please confirm):");
     for (const row of flaggedInferredRows) {
