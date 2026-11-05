@@ -4,3 +4,7 @@ node_modules/
 !.env.example
 *.tsbuildinfo
 
+# Real CSV exports for scripts/import-sheet.ts (see its header comment) —
+# never commit the studio's actual roster/balance data.
+scripts/data/
+

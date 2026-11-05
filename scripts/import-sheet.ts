@@ -19,7 +19,7 @@ import path from "node:path";
 
 import { createPayer } from "../src/lib/db/payers";
 import { createChild, setChildPrice } from "../src/lib/db/children";
-import { listClassGroups, updateClassGroup } from "../src/lib/db/classGroups";
+import { listClassGroups, updateClassGroup, type ClassGroup } from "../src/lib/db/classGroups";
 import { createReceipt } from "../src/lib/db/receipts";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -196,37 +196,64 @@ function sameChild(a: { firstName: string; familyName: string }, b: { firstName:
   return a.firstName === b.firstName && a.familyName === b.familyName;
 }
 
-// Assigns each distinct (day, time) combination found in the roster to one
-// of the existing placeholder class_groups rows (seeded by an earlier
-// task), updating it in place rather than inserting a duplicate row. Logs a
-// warning — and reuses the first group — if the roster has more distinct
-// combinations than there are existing groups to update.
-async function resolveClassGroups(
-  roster: RosterRow[],
-): Promise<Map<string, string>> {
-  const existingGroups = await listClassGroups();
+// Returns the distinct (day, time) combinations found in the roster, in
+// first-seen order.
+export function getDistinctClassCombos(roster: RosterRow[]): string[] {
   const distinctCombos: string[] = [];
   for (const child of roster) {
     const key = `${child.classDay}|${child.classTime}`;
     if (!distinctCombos.includes(key)) distinctCombos.push(key);
   }
+  return distinctCombos;
+}
+
+export type ClassGroupAssignment = { groupId: string; day: string; time: string };
+
+// Pure planning step: pairs each distinct (day, time) combination with one
+// of the existing placeholder class_groups rows (seeded by an earlier
+// task), to be updated in place rather than inserting a duplicate row.
+//
+// This is a one-time migration script, and resolveClassGroups() is called
+// before main() makes any createPayer/createChild/createReceipt call. If
+// the roster has more distinct combinations than there are placeholder
+// groups to assign them to, we cannot pick a correct group for the
+// overflow combinations — silently reusing one would write a wrong
+// class_group foreign key for some children. So this throws instead of
+// falling back, aborting the whole import before any database writes
+// happen, rather than risk a partially-correct import.
+export function planClassGroupAssignments(
+  distinctCombos: string[],
+  existingGroups: Pick<ClassGroup, "id">[],
+): Map<string, ClassGroupAssignment> {
+  if (distinctCombos.length > existingGroups.length) {
+    throw new Error(
+      `[import-sheet] Roster has ${distinctCombos.length} distinct day/time combinations ` +
+        `but only ${existingGroups.length} placeholder class_groups rows exist to assign them to. ` +
+        `Add more placeholder class_groups rows (or fix the roster data) before importing — ` +
+        `aborting without writing anything.`,
+    );
+  }
+
+  const plan = new Map<string, ClassGroupAssignment>();
+  distinctCombos.forEach((key, i) => {
+    const [day, time] = key.split("|");
+    plan.set(key, { groupId: existingGroups[i].id, day, time });
+  });
+  return plan;
+}
+
+async function resolveClassGroups(
+  roster: RosterRow[],
+): Promise<Map<string, string>> {
+  const existingGroups = await listClassGroups();
+  const distinctCombos = getDistinctClassCombos(roster);
+  // Throws before any write if the roster can't be mapped onto the
+  // existing placeholder groups — see planClassGroupAssignments().
+  const plan = planClassGroupAssignments(distinctCombos, existingGroups);
 
   const comboToGroupId = new Map<string, string>();
-
-  for (let i = 0; i < distinctCombos.length; i++) {
-    const key = distinctCombos[i];
-    const [day, time] = key.split("|");
-    const existing = existingGroups[i];
-
-    if (!existing) {
-      console.warn(
-        `[import-sheet] No placeholder class_groups row left for "${day} ${time}" — reusing group ${existingGroups[0]?.id}. Fix this group's day/time manually.`,
-      );
-      comboToGroupId.set(key, existingGroups[0]?.id ?? "");
-      continue;
-    }
-
-    const updated = await updateClassGroup(existing.id, { day, time });
+  for (const [key, { groupId, day, time }] of plan) {
+    const updated = await updateClassGroup(groupId, { day, time });
     comboToGroupId.set(key, updated.id);
   }
 
