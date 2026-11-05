@@ -1,5 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&family=Varela+Round&display=swap");
-
 /* Ya-Da component styles. Every value comes from tokens.css. RTL first. */
 .yd, .yd * { box-sizing: border-box; }
 .yd { direction: rtl; font-family: var(--font-sans); color: var(--ink); background: var(--paper); font-size: 15px; line-height: 24px; -webkit-font-smoothing: antialiased; }

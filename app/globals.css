@@ -2,10 +2,11 @@
 @import "../src/styles/yada.css";
 
 :root {
-  /* Maps tokens.json `type.families` to the font vars next/font exposes in
-     layout.tsx. yada.css's `yd-*` classes reference these two names. */
-  --font-display: var(--font-varela-round), "Rubik", system-ui, sans-serif;
-  --font-sans: var(--font-rubik), "Assistant", system-ui, sans-serif;
+  /* Single unified font (Heebo, self-hosted via next/font in layout.tsx)
+     for both display and body text. yada.css's `yd-*` classes reference
+     these two names. */
+  --font-display: var(--font-heebo), system-ui, sans-serif;
+  --font-sans: var(--font-heebo), system-ui, sans-serif;
 }
 
 html,

@@ -1,20 +1,14 @@
 import type { Metadata } from "next";
-import { Varela_Round, Rubik } from "next/font/google";
+import { Heebo } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 
-// tokens.json `type.families.display` is "Varela Round", "Rubik", ...
-// tokens.json `type.families.sans` is "Rubik", "Assistant", ...
-const varelaRound = Varela_Round({
-  subsets: ["latin", "hebrew"],
-  weight: "400",
-  variable: "--font-varela-round",
-});
-
-const rubik = Rubik({
+// Single unified font for both Hebrew and Latin text (Heebo supports both;
+// Open Sans/Inter were considered but neither ships a Hebrew subset).
+const heebo = Heebo({
   subsets: ["latin", "hebrew"],
   weight: ["400", "500", "600", "700"],
-  variable: "--font-rubik",
+  variable: "--font-heebo",
 });
 
 export const metadata: Metadata = {
@@ -30,7 +24,7 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="he" dir="rtl">
-        <body className={`${varelaRound.variable} ${rubik.variable}`}>
+        <body className={heebo.variable}>
           {children}
         </body>
       </html>
