@@ -91,14 +91,29 @@ export function verifyMorningSignature(
 
 // --- document/created -> receipt lines --------------------------------------
 
-function documentYear(payload: MorningDocumentPayload): string {
+// The document's own year and month, from its date (falling back to
+// createdAt, then today).
+function documentYearMonth(payload: MorningDocumentPayload): { year: number; month: number } {
   const dateStr = payload.date ?? payload.createdAt ?? "";
-  const match = dateStr.match(/^(\d{4})-/);
-  // Each item only carries a Hebrew month name, never its own date, so every
-  // item is assumed to fall within the document's own year. (Simplifying
-  // assumption per the task brief: a December document covering an
-  // "upcoming January" line would need special-casing this doesn't attempt.)
-  return match ? match[1] : String(new Date().getFullYear());
+  const match = dateStr.match(/^(\d{4})-(\d{2})/);
+  if (match) return { year: Number(match[1]), month: Number(match[2]) };
+  const now = new Date();
+  return { year: now.getFullYear(), month: now.getMonth() + 1 };
+}
+
+// Each item only carries a Hebrew month name, never its own year. Assume
+// the item month is the one nearest the document's own month: more than 6
+// months after it means the previous year (a January 2027 receipt for
+// "דצמבר" is December 2026), more than 6 months before it means the next
+// year (a December 2026 receipt for "ינואר" is January 2027).
+export function inferItemMonth(
+  document: { year: number; month: number },
+  itemMonthNumber: string,
+): string {
+  const itemMonth = Number(itemMonthNumber);
+  const diff = itemMonth - document.month;
+  const year = diff > 6 ? document.year - 1 : diff < -6 ? document.year + 1 : document.year;
+  return `${year}-${itemMonthNumber}-01`;
 }
 
 export type ResolvedReceiptLine = {
@@ -112,7 +127,7 @@ export async function resolveDocumentCreatedLines(
   payload: MorningDocumentPayload,
 ): Promise<{ lines: ResolvedReceiptLine[] }> {
   const parsedRecipient = parseRecipientName(payload.recipient?.name ?? "");
-  const year = documentYear(payload);
+  const documentDate = documentYearMonth(payload);
 
   let payerId: string | undefined;
   let childId: string | undefined;
@@ -135,7 +150,7 @@ export async function resolveDocumentCreatedLines(
   const lines: ResolvedReceiptLine[] = (payload.items ?? []).map((item) => {
     const monthNumber = hebrewMonthNameToNumber(item.description);
     return {
-      month: monthNumber ? `${year}-${monthNumber}-01` : undefined,
+      month: monthNumber ? inferItemMonth(documentDate, monthNumber) : undefined,
       amount: item.price * (item.quantity ?? 1),
       childId,
       payerId,

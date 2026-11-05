@@ -8,6 +8,7 @@ import {
   RECEIPT_DOCUMENT_TYPE,
   computeContactUpdate,
   hebrewMonthNameToNumber,
+  inferItemMonth,
   parseRecipientName,
   processClientCreated,
   resolveDocumentCreatedLines,
@@ -106,6 +107,26 @@ describe("verifyMorningSignature", () => {
   });
 });
 
+describe("inferItemMonth", () => {
+  test("a month near the document's month stays in the document's year", () => {
+    expect(inferItemMonth({ year: 2026, month: 10 }, "10")).toBe("2026-10-01");
+    expect(inferItemMonth({ year: 2026, month: 10 }, "09")).toBe("2026-09-01");
+    expect(inferItemMonth({ year: 2026, month: 10 }, "11")).toBe("2026-11-01");
+    expect(inferItemMonth({ year: 2026, month: 7 }, "01")).toBe("2026-01-01"); // 6 back
+    expect(inferItemMonth({ year: 2026, month: 1 }, "07")).toBe("2026-07-01"); // 6 ahead
+  });
+
+  test("backward across the year boundary: a January document's December item is the previous December", () => {
+    expect(inferItemMonth({ year: 2027, month: 1 }, "12")).toBe("2026-12-01");
+    expect(inferItemMonth({ year: 2027, month: 2 }, "11")).toBe("2026-11-01");
+  });
+
+  test("forward across the year boundary: a December document's January item is the next January", () => {
+    expect(inferItemMonth({ year: 2026, month: 12 }, "01")).toBe("2027-01-01");
+    expect(inferItemMonth({ year: 2026, month: 11 }, "02")).toBe("2027-02-01");
+  });
+});
+
 describe("resolveDocumentCreatedLines", () => {
   afterEach(async () => {
     // individual tests clean up their own fixtures
@@ -153,6 +174,23 @@ describe("resolveDocumentCreatedLines", () => {
       await getSupabaseClient().from("class_groups").delete().eq("id", classGroupId);
       await getSupabaseClient().from("payers").delete().eq("id", payer.id);
     }
+  });
+
+  test("infers each item's year across the calendar-year boundary from the document date", async () => {
+    const payload: MorningDocumentPayload = {
+      type: RECEIPT_DOCUMENT_TYPE,
+      recipient: { name: "מישהי שלא קיימת (ילד כלשהו)" },
+      items: [
+        { description: "דצמבר", sku: "חוג אומנות", price: 300, quantity: 1 },
+        { description: "ינואר", sku: "חוג אומנות", price: 300, quantity: 1 },
+        { description: "פברואר", sku: "חוג אומנות", price: 300, quantity: 1 },
+      ],
+      date: "2027-01-05",
+      total: 900,
+    };
+
+    const { lines } = await resolveDocumentCreatedLines(payload);
+    expect(lines.map((line) => line.month)).toEqual(["2026-12-01", "2027-01-01", "2027-02-01"]);
   });
 
   test("leaves childId/payerId unset when the payer name doesn't match anything", async () => {
