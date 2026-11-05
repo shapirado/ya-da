@@ -38,10 +38,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
         <div className="spacer" />
 
         <div className="yd-user">
-          <span className="yd-avatar">ד</span>
+          <span className="yd-avatar">גד</span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 500 }}>דליה</div>
-            <div className="small muted">dalia@yada.co.il</div>
+            <div style={{ fontWeight: 500 }}>גליושה</div>
+            <div className="small muted">shapirado@gmail.com</div>
           </div>
         </div>
       </aside>

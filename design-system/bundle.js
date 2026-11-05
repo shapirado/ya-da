@@ -60,7 +60,7 @@
       '<circle cx="7.6" cy="41.2" r="2.4" fill="var(--sage)"/></svg>';
   }
   function logo(sub) {
-    return '<div class="yd-logo">' + mark(42) + '<div><div class="word">Ya-Da</div>' + (sub === false ? '' : '<div class="sub">הסטודיו של דליה</div>') + '</div></div>';
+    return '<div class="yd-logo">' + mark(42) + '<div><div class="word">Ya-Da</div>' + (sub === false ? '' : '<div class="sub">סטודיו ידיים</div>') + '</div></div>';
   }
   function illustration(w) {
     w = w || 220;
@@ -273,7 +273,7 @@
     return '<div class="yd yd-app"><aside class="yd-side">' + logo() +
       NAV.map(function (n, i) { return '<div class="yd-nav ' + (i === active ? 'on' : '') + '">' + ic(n[0]) + n[1] + '</div>'; }).join('') +
       '<div style="margin-top:14px">' + C.button('רישום תשלום', 'primary', { block: true, icon: 'plus' }) + '</div>' +
-      '<div class="spacer"></div><div class="yd-user"><span class="yd-avatar">ד</span><div style="flex:1"><div style="font-weight:500">דליה</div><div class="small muted">dalia@yada.co.il</div></div>' + ic('out', 'sm') + '</div></aside>' +
+      '<div class="spacer"></div><div class="yd-user"><span class="yd-avatar">גד</span><div style="flex:1"><div style="font-weight:500">דליה</div><div class="small muted">dalia@yada.co.il</div></div>' + ic('out', 'sm') + '</div></aside>' +
       '<main class="yd-main">' + main + '</main></div>';
   }
   function phone(body, tab, overlay) {
