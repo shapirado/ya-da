@@ -1,6 +1,7 @@
 import AppShell from "@/src/components/AppShell";
 import ChildEditor from "@/src/components/families/ChildEditor";
 import PayerEditor from "@/src/components/families/PayerEditor";
+import PaymentHistoryList from "@/src/components/families/PaymentHistoryList";
 import WhatsAppReminder from "@/src/components/WhatsAppReminder";
 import { listPayers } from "@/src/lib/db/payers";
 import { listChildPrices, listChildrenWithPayer } from "@/src/lib/db/children";
@@ -13,10 +14,6 @@ import { saveChild, savePrice, savePayer } from "../actions";
 
 // Always show today's live data rather than a build-time snapshot.
 export const dynamic = "force-dynamic";
-
-// Shown for a payment-history line whose month or amount hasn't been
-// resolved yet in the receipts review queue.
-const NOT_YET_MATCHED = "טרם שויך";
 
 function currentMonth(): string {
   const now = new Date();
@@ -113,27 +110,7 @@ export default async function FamilyDetailPage({
               onUpdateChild={saveChild}
               onSetPrice={savePrice}
             />
-            <div className="yd-card yd-pad yd-stack">
-              <span className="small muted">היסטוריית תשלומים · {child.firstName}</span>
-              {history.length === 0 ? (
-                <span className="small muted">אין תשלומים עדיין</span>
-              ) : (
-                history
-                  .slice()
-                  // Lines with no month yet (unmatched webhook items) sort first.
-                  .sort((a, b) => ((a.month ?? "9999") > (b.month ?? "9999") ? -1 : 1))
-                  .map((line) => (
-                    <div key={line.id} className="yd-row" style={{ justifyContent: "space-between" }}>
-                      <span>{line.month ? monthLabel(line.month) : NOT_YET_MATCHED}</span>
-                      <span>
-                        {line.amount === null
-                          ? NOT_YET_MATCHED
-                          : `${line.amount.toLocaleString("he-IL")} ₪`}
-                      </span>
-                    </div>
-                  ))
-              )}
-            </div>
+            <PaymentHistoryList childFirstName={child.firstName} history={history} />
           </div>
         ))}
       </div>

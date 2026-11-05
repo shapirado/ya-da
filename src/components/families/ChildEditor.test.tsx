@@ -9,7 +9,7 @@ const sampleChild: Child = {
   firstName: "הלל",
   familyName: "פרידמן",
   classGroupId: "group-1",
-  gender: "boy",
+  gender: "בן",
   payerId: "payer-1",
   enrollmentStart: "2026-09-01",
   active: true,

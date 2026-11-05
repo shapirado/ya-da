@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Payer, PayerInput } from "@/src/lib/db/payers";
+import SaveButton from "../SaveButton";
 
 export type PayerEditorProps = {
   payer: Payer;
@@ -19,13 +20,13 @@ export default function PayerEditor({ payer, onSavePayer }: PayerEditorProps) {
   const [role, setRole] = useState(payer.role ?? "mom");
   const [phone, setPhone] = useState(payer.phone ?? "");
 
-  function handleSave() {
+  async function handleSave() {
     const update: Partial<PayerInput> = {};
     if (displayName !== payer.displayName) update.displayName = displayName;
     if (role !== (payer.role ?? "mom")) update.role = role;
     if (phone !== (payer.phone ?? "")) update.phone = phone;
     if (Object.keys(update).length > 0) {
-      onSavePayer(payer.id, update);
+      await onSavePayer(payer.id, update);
     }
   }
 
@@ -44,7 +45,7 @@ export default function PayerEditor({ payer, onSavePayer }: PayerEditorProps) {
         </div>
 
         <div className="yd-field" style={{ flex: 1 }}>
-          <label htmlFor={`payer-role-${payer.id}`}>תפקיד</label>
+          <label htmlFor={`payer-role-${payer.id}`}>סוג הקשר</label>
           <select
             id={`payer-role-${payer.id}`}
             className="yd-input"
@@ -72,9 +73,7 @@ export default function PayerEditor({ payer, onSavePayer }: PayerEditorProps) {
       </div>
 
       <div className="yd-row" style={{ justifyContent: "flex-end" }}>
-        <button type="button" className="yd-btn primary sm" onClick={handleSave}>
-          שמירה
-        </button>
+        <SaveButton onSave={handleSave} />
       </div>
     </div>
   );

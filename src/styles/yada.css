@@ -38,6 +38,7 @@
 .yd-btn.lg { height: 48px; padding: 0 22px; font-size: 15px; }
 .yd-btn.block { width: 100%; }
 .yd-btn.icon { width: 40px; padding: 0; }
+.yd-btn.icon.ghost.active { background: var(--terracotta-soft); color: var(--terracotta-ink); }
 .yd-btn[disabled] { opacity: .45; cursor: default; }
 
 /* ---------- chips ---------- */
@@ -212,7 +213,7 @@
 .yd-tab.fab > span { width: 50px; height: 50px; border-radius: 18px; background: var(--terracotta); color: var(--on-fill); display: grid; place-items: center; margin-top: -26px; box-shadow: 0 6px 16px rgba(184, 90, 54, .35); }
 
 /* ---------- forms ---------- */
-.yd-field { display: flex; flex-direction: column; gap: 6px; }
+.yd-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .yd-field > label { font-size: 13px; font-weight: 500; color: var(--ink-muted); }
 .yd-input { height: 44px; border-radius: var(--radius-md); border: 1px solid var(--line-strong); background: var(--card); padding: 0 14px; display: flex; align-items: center; gap: 8px; font-size: 15px; width: 100%; }
 .yd-input.focus { border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-soft); }
@@ -304,11 +305,17 @@
 
 /* ---------- dashboard unpaid-first list ---------- */
 .yd-unpaid-children { display: flex; flex-direction: column; gap: var(--space-3); }
-.yd-unpaid-child-head { display: flex; align-items: center; gap: var(--space-3); width: 100%; padding: var(--space-4); border: none; background: none; cursor: pointer; text-align: start; }
-.yd-unpaid-child-head .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.yd-unpaid-child-head .info .name { font-weight: 500; }
+.yd-unpaid-child { cursor: pointer; transition: background-color .12s ease, border-color .12s ease; }
+.yd-unpaid-child:hover { background: var(--paper-sunk); }
+.yd-unpaid-child-head { display: flex; align-items: center; gap: var(--space-3); width: 100%; padding: var(--space-4); border: none; background: none; text-align: start; }
+.yd-unpaid-child-head .info { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.yd-unpaid-child-head .info .name { font-weight: 500; display: flex; align-items: center; gap: 6px; }
 .yd-unpaid-child-head .amt { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--missing-ink); white-space: nowrap; }
 .yd-unpaid-child-months { display: flex; flex-direction: column; gap: var(--space-2); padding: 0 var(--space-4) var(--space-4); }
+.yd-unpaid-child.selected { border-color: var(--terracotta); box-shadow: 0 0 0 1px var(--terracotta); background: var(--terracotta-soft); }
+.yd-avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; color: var(--ink); }
+.yd-btn.icon.whatsapp-icon { color: var(--whatsapp); }
+.yd-btn.icon.whatsapp-icon .ic { width: 18px; height: 18px; }
 .yd-month-row { border-top: 1px solid var(--line); padding-top: var(--space-3); }
 .yd-month-row-main { justify-content: space-between; }
 .yd-month-row-main .label { font-weight: 500; min-width: 70px; }

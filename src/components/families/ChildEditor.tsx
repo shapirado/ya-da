@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Child, ChildInput } from "@/src/lib/db/children";
 import type { ClassGroup } from "@/src/lib/db/classGroups";
+import SaveButton from "../SaveButton";
 
 export type ChildEditorProps = {
   child: Child;
@@ -11,7 +12,7 @@ export type ChildEditorProps = {
   onSetPrice: (childId: string, input: { amount: number; effectiveFrom: string }) => void | Promise<void>;
 };
 
-function groupLabel(group: ClassGroup): string {
+export function groupLabel(group: ClassGroup): string {
   return [group.day, group.time].filter(Boolean).join(" ") || group.id;
 }
 
@@ -23,27 +24,34 @@ export function firstOfMonth(date: string): string | null {
   return match ? `${match[1]}-${match[2]}-01` : null;
 }
 
+export const GENDER_OPTIONS: Array<{ value: string; label: string; icon: string }> = [
+  { value: "בן", label: "ילד", icon: "♂" },
+  { value: "בת", label: "ילדה", icon: "♀" },
+];
+
 export default function ChildEditor({ child, groups, onUpdateChild, onSetPrice }: ChildEditorProps) {
   const [firstName, setFirstName] = useState(child.firstName);
   const [classGroupId, setClassGroupId] = useState(child.classGroupId ?? "");
+  const [gender, setGender] = useState(child.gender ?? "");
   const [active, setActive] = useState(child.active);
   const [amount, setAmount] = useState("");
   const [effectiveFrom, setEffectiveFrom] = useState("");
 
-  function handleSave() {
+  async function handleSave() {
     const update: Partial<ChildInput> = {};
     if (firstName !== child.firstName) update.firstName = firstName;
     if (classGroupId !== (child.classGroupId ?? "")) update.classGroupId = classGroupId;
+    if (gender !== (child.gender ?? "")) update.gender = gender;
     if (active !== child.active) update.active = active;
 
     if (Object.keys(update).length > 0) {
-      onUpdateChild(child.id, update);
+      await onUpdateChild(child.id, update);
     }
 
     const trimmedAmount = amount.trim();
     const effectiveMonth = firstOfMonth(effectiveFrom);
     if (trimmedAmount !== "" && effectiveMonth !== null) {
-      onSetPrice(child.id, {
+      await onSetPrice(child.id, {
         amount: Number(trimmedAmount),
         effectiveFrom: effectiveMonth,
       });
@@ -80,6 +88,24 @@ export default function ChildEditor({ child, groups, onUpdateChild, onSetPrice }
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="yd-field" style={{ flex: "0 0 auto" }}>
+          <label>מגדר</label>
+          <div className="yd-row" role="group" aria-label="מגדר" style={{ gap: 4 }}>
+            {GENDER_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                aria-label={option.label}
+                aria-pressed={gender === option.value}
+                className={`yd-btn icon ghost${gender === option.value ? " active" : ""}`}
+                onClick={() => setGender(option.value)}
+              >
+                {option.icon}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -121,9 +147,7 @@ export default function ChildEditor({ child, groups, onUpdateChild, onSetPrice }
           <span className="small muted">פעיל/ה</span>
         </label>
 
-        <button type="button" className="yd-btn primary sm" onClick={handleSave}>
-          שמירה
-        </button>
+        <SaveButton onSave={handleSave} />
       </div>
     </div>
   );

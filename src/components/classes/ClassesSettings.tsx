@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { ClassGroupInput } from "@/src/lib/db/classGroups";
 import type { ClassGroupWithEnrollment, DefaultPrices } from "@/app/classes/actions";
+import SaveButton from "../SaveButton";
 
 export type ClassesSettingsProps = {
   groups: ClassGroupWithEnrollment[];
@@ -56,13 +57,13 @@ function ClassGroupCard({
   const [time, setTime] = useState(group.time ?? "");
   const [color, setColor] = useState(group.color ?? COLOR_OPTIONS[0].value);
 
-  function handleSave() {
+  async function handleSave() {
     const update: Partial<ClassGroupInput> = {};
     if (day !== (group.day ?? DAY_OPTIONS[0])) update.day = day;
     if (time !== (group.time ?? "")) update.time = time;
     if (color !== (group.color ?? COLOR_OPTIONS[0].value)) update.color = color;
     if (Object.keys(update).length > 0) {
-      onSave(group.id, update);
+      await onSave(group.id, update);
     }
   }
 
@@ -125,9 +126,7 @@ function ClassGroupCard({
       </div>
 
       <div className="yd-row" style={{ justifyContent: "flex-end" }}>
-        <button type="button" className="yd-btn primary sm" onClick={handleSave}>
-          שמירה
-        </button>
+        <SaveButton onSave={handleSave} />
       </div>
     </div>
   );
@@ -147,7 +146,7 @@ function DefaultPricesCard({
     defaultPrices.discountPrice !== null ? String(defaultPrices.discountPrice) : "",
   );
 
-  function handleSave() {
+  async function handleSave() {
     const update: Partial<DefaultPrices> = {};
     const trimmedFull = fullPrice.trim();
     const trimmedDiscount = discountPrice.trim();
@@ -156,7 +155,7 @@ function DefaultPricesCard({
     if (newFull !== defaultPrices.fullPrice) update.fullPrice = newFull;
     if (newDiscount !== defaultPrices.discountPrice) update.discountPrice = newDiscount;
     if (Object.keys(update).length > 0) {
-      onSave(update);
+      await onSave(update);
     }
   }
 
@@ -194,9 +193,7 @@ function DefaultPricesCard({
         </div>
 
         <div className="yd-row" style={{ justifyContent: "flex-end" }}>
-          <button type="button" className="yd-btn primary sm" onClick={handleSave}>
-            שמירה
-          </button>
+          <SaveButton onSave={handleSave} />
         </div>
       </div>
     </div>

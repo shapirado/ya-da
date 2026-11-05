@@ -1,13 +1,24 @@
 import AppShell from "@/src/components/AppShell";
-import UnpaidList, { type UnpaidChild, type UnpaidMonthStatus } from "@/src/components/dashboard/UnpaidList";
+import { type UnpaidChild, type UnpaidMonthStatus } from "@/src/components/dashboard/UnpaidList";
+import DashboardBoard, { type DashboardRow } from "@/src/components/dashboard/DashboardBoard";
 import RecordPaymentButton from "@/src/components/dashboard/RecordPaymentButton";
+import NewStudentButton from "@/src/components/dashboard/NewStudentButton";
 import type { CreateReceiptInput } from "@/src/components/RecordPayment/RecordPaymentModal";
+import type { CreateStudentInput } from "@/src/components/dashboard/NewStudentModal";
 import { listChildPrices, listChildrenWithPayer } from "@/src/lib/db/children";
 import { listClassGroups } from "@/src/lib/db/classGroups";
 import { listPayers } from "@/src/lib/db/payers";
 import { listReceiptLinesForChild } from "@/src/lib/db/receipts";
 import { computeDueStatus } from "@/src/lib/dues";
-import { markMonthPaid, recordPayment, type MarkMonthPaidInput } from "./actions";
+import {
+  markMonthPaid,
+  recordPayment,
+  updateChildFromDashboard,
+  setChildPriceFromDashboard,
+  updatePayerFromDashboard,
+  createStudent,
+  type MarkMonthPaidInput,
+} from "./actions";
 
 // Always show today's live status rather than a build-time snapshot.
 export const dynamic = "force-dynamic";
@@ -74,11 +85,13 @@ export default async function DashboardPage() {
       return {
         child,
         statuses,
+        history: lines,
         owedMonths: statuses.filter((status) => status.status !== "paid"),
         className,
         classColor,
         payerName: child.payer?.displayName,
         payerRelation,
+        payerPhone: child.payer?.phone ?? undefined,
       };
     }),
   );
@@ -90,14 +103,37 @@ const childrenDue: UnpaidChild[] = childrenWithStatus
     childName: `${entry.child.firstName} ${entry.child.familyName}`,
     className: entry.className,
     classColor: entry.classColor, // <-- pass it here
+    payerId: entry.child.payerId ?? undefined,
     payerName: entry.payerName,
     payerRelation: entry.payerRelation,
+    payerPhone: entry.payerPhone,
     months: entry.owedMonths,
+    fullChild: entry.child,
   }));
 
   const fullyPaidCount = childrenWithStatus.filter(
     (entry) => entry.statuses.length > 0 && entry.owedMonths.length === 0,
   ).length;
+
+  const dashboardRows: DashboardRow[] = childrenWithStatus.map((entry) => ({
+    childId: entry.child.id,
+    firstName: entry.child.firstName,
+    familyName: entry.child.familyName,
+    classGroupId: entry.child.classGroupId,
+    className: entry.className,
+    classColor: entry.classColor,
+    payerId: entry.child.payerId ?? undefined,
+    payerName: entry.payerName,
+    payerRelation: entry.payerRelation,
+    payerPhone: entry.payerPhone,
+    statuses: entry.statuses,
+    history: entry.history,
+    fullChild: entry.child,
+  }));
+
+  const monthsWithData = Array.from(
+    new Set(childrenWithStatus.flatMap((entry) => entry.statuses.map((status) => status.month))),
+  ).sort((a, b) => (a > b ? -1 : 1));
 
   // Aggregate stats
   const totalMissing = childrenDue.reduce((sum, c) => {
@@ -120,6 +156,11 @@ const childrenDue: UnpaidChild[] = childrenWithStatus
     await recordPayment(input);
   }
 
+  async function handleCreateStudent(input: CreateStudentInput) {
+    "use server";
+    await createStudent(input);
+  }
+
   return (
     <AppShell>
       <div
@@ -140,6 +181,11 @@ const childrenDue: UnpaidChild[] = childrenWithStatus
             </p>
           </div>
           <div className="yd-row">
+            <NewStudentButton
+              families={families}
+              classGroups={classGroups}
+              onCreateStudent={handleCreateStudent}
+            />
             <RecordPaymentButton
               families={families}
               childrenByPayer={childrenByPayer}
@@ -193,14 +239,17 @@ const childrenDue: UnpaidChild[] = childrenWithStatus
           </div>
         </section>
 
-        {/* Unpaid Children List Section */}
-        <div style={{ maxWidth: 620, width: "100%" }}>
-          <UnpaidList
-            children={childrenDue}
-            onMarkPaid={handleMarkPaid}
-            fullyPaidCount={fullyPaidCount}
-          />
-        </div>
+        {/* Children List Section (filterable) */}
+        <DashboardBoard
+          rows={dashboardRows}
+          months={monthsWithData}
+          classGroups={classGroups}
+          payers={payers}
+          onMarkPaid={handleMarkPaid}
+          onUpdateChild={updateChildFromDashboard}
+          onSetPrice={setChildPriceFromDashboard}
+          onUpdatePayer={updatePayerFromDashboard}
+        />
       </div>
     </AppShell>
   );

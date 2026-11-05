@@ -1,9 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { listChildrenWithPayer } from "@/src/lib/db/children";
+import {
+  listChildrenWithPayer,
+  updateChild,
+  setChildPrice,
+  createChild,
+  type ChildInput,
+} from "@/src/lib/db/children";
+import { updatePayer, createPayer, type PayerInput } from "@/src/lib/db/payers";
 import { createReceipt } from "@/src/lib/db/receipts";
 import type { CreateReceiptInput } from "@/src/components/RecordPayment/RecordPaymentModal";
+import type { CreateStudentInput } from "@/src/components/dashboard/NewStudentModal";
 
 export type MarkMonthPaidInput = {
   amount: number;
@@ -42,6 +50,61 @@ export async function markMonthPaid(
   });
 
   revalidatePath("/dashboard");
+}
+
+export async function updateChildFromDashboard(
+  childId: string,
+  input: Partial<ChildInput>,
+): Promise<void> {
+  if (Object.keys(input).length === 0) return;
+  await updateChild(childId, input);
+  revalidatePath("/dashboard");
+  revalidatePath("/families");
+}
+
+export async function setChildPriceFromDashboard(
+  childId: string,
+  input: { amount: number; effectiveFrom: string },
+): Promise<void> {
+  await setChildPrice(childId, input);
+  revalidatePath("/dashboard");
+  revalidatePath("/families");
+}
+
+export async function updatePayerFromDashboard(
+  payerId: string,
+  input: Partial<PayerInput>,
+): Promise<void> {
+  if (Object.keys(input).length === 0) return;
+  await updatePayer(payerId, input);
+  revalidatePath("/dashboard");
+  revalidatePath("/families");
+}
+
+// Creates a new student from the dashboard's "תלמיד/ה חדש/ה" button. Either
+// an existing payer is reused (input.payerId) or a new one is created first
+// (input.newPayer) — exactly one of the two is set, enforced by the modal.
+export async function createStudent(input: CreateStudentInput): Promise<void> {
+  const payerId = input.payerId ?? (await createPayer(input.newPayer!)).id;
+
+  const child = await createChild({
+    firstName: input.firstName,
+    familyName: input.familyName,
+    classGroupId: input.classGroupId,
+    gender: input.gender,
+    payerId,
+    enrollmentStart: input.enrollmentStart,
+  });
+
+  if (input.startingPrice) {
+    await setChildPrice(child.id, {
+      amount: input.startingPrice,
+      effectiveFrom: input.enrollmentStart,
+    });
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/families");
 }
 
 // Manual payment entry from the dashboard's "רישום תשלום ידני" button.
