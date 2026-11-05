@@ -21,7 +21,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         <div className="yd-logo">
           <Mark size={42} />
           <div>
-            <div className="word">יה-דה</div>
+            <div className="word">Ya-Da</div>
             <div className="sub">הסטודיו של דליה</div>
           </div>
         </div>

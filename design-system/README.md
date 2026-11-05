@@ -1,4 +1,4 @@
-# Ya-Da — יה-דה
+# Ya-Da — Ya-Da
 
 Ya-Da is the payment tracker for Dalia's children's art studio. Dalia is the only user. She opens it to see who has paid for the month and to remind the families who haven't. The interface is in Hebrew and right-to-left throughout. It should feel like a warm art studio, but it's a money tool, so **the numbers come first**.
 

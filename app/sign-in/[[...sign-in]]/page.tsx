@@ -60,7 +60,7 @@ export default function SignInPage() {
           <PaletteIllustration />
           <div className="yd-login-wordmark">
             <Mark size={36} />
-            <span className="yd-login-word">יה-דה</span>
+            <span className="yd-login-word">Ya-Da</span>
           </div>
           <span className="muted small">מעקב תשלומים לסטודיו של דליה</span>
         </div>

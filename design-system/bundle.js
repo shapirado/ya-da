@@ -60,7 +60,7 @@
       '<circle cx="7.6" cy="41.2" r="2.4" fill="var(--sage)"/></svg>';
   }
   function logo(sub) {
-    return '<div class="yd-logo">' + mark(42) + '<div><div class="word">יה-דה</div>' + (sub === false ? '' : '<div class="sub">הסטודיו של דליה</div>') + '</div></div>';
+    return '<div class="yd-logo">' + mark(42) + '<div><div class="word">Ya-Da</div>' + (sub === false ? '' : '<div class="sub">הסטודיו של דליה</div>') + '</div></div>';
   }
   function illustration(w) {
     w = w || 220;
@@ -288,7 +288,7 @@
     var dabs = '<span class="yd-dab" style="position:absolute;top:90px;right:140px;width:26px;height:22px"></span><span class="yd-dab mustard" style="position:absolute;top:220px;left:160px;width:34px;height:28px"></span><span class="yd-dab sage" style="position:absolute;bottom:120px;right:260px;width:20px;height:18px"></span><span class="yd-dab teal" style="position:absolute;bottom:80px;left:300px;width:14px;height:12px"></span>';
     return '<div class="yd" style="min-height:820px;display:grid;place-items:center;position:relative;overflow:hidden">' + dabs +
       '<div class="yd-card" style="width:420px;padding:32px 36px 28px;display:flex;flex-direction:column;gap:18px;position:relative">' +
-      '<div style="display:flex;flex-direction:column;align-items:center;gap:6px">' + illustration(200) + '<div style="display:flex;align-items:center;gap:10px;margin-top:4px">' + mark(36) + '<span style="font-family:var(--font-display);font-size:32px;line-height:38px">יה-דה</span></div><span class="muted small">מעקב תשלומים לסטודיו של דליה</span></div>' +
+      '<div style="display:flex;flex-direction:column;align-items:center;gap:6px">' + illustration(200) + '<div style="display:flex;align-items:center;gap:10px;margin-top:4px">' + mark(36) + '<span style="font-family:var(--font-display);font-size:32px;line-height:38px">Ya-Da</span></div><span class="muted small">מעקב תשלומים לסטודיו של דליה</span></div>' +
       '<div class="yd-field"><label>אימייל</label><div class="yd-input focus">' + ic('mail', 'sm') + '<span class="ltr">dalia@yada.co.il</span></div></div>' +
       '<div class="yd-field"><label>סיסמה</label><div class="yd-input">' + ic('lock', 'sm') + '<span class="tnum" style="letter-spacing:3px">••••••••</span><span class="suffix small" style="color:var(--teal-ink)">הצגה</span></div></div>' +
       '<div style="display:flex;justify-content:space-between;align-items:center" class="small"><label style="display:flex;gap:8px;align-items:center"><span class="yd-choice on" style="height:auto;padding:0;border:0;background:none"><span class="tick">' + ic('check', 'sm') + '</span></span>לזכור אותי</label><span style="color:var(--terracotta-ink)">שכחתי סיסמה</span></div>' +
