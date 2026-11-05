@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { recordPayerNameAlias } from "@/src/lib/db/payers";
-import { resolveReceiptLine } from "@/src/lib/db/receipts";
+import { dismissEmptyReceipt, resolveReceiptLine } from "@/src/lib/db/receipts";
 
 export type ResolveReceiptLineInput = {
   payerId?: string;
@@ -29,5 +29,11 @@ export async function resolveReceipt(lineId: string, input: ResolveReceiptLineIn
     await recordPayerNameAlias(input.payerId, input.rawPayerName);
   }
 
+  revalidatePath("/receipts");
+}
+
+// "Mark handled" for a needs_review receipt with no lines to resolve.
+export async function dismissReceipt(receiptId: string): Promise<void> {
+  await dismissEmptyReceipt(receiptId);
   revalidatePath("/receipts");
 }

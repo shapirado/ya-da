@@ -5,6 +5,7 @@ import { createChild } from "./children";
 import { computeDueStatus } from "../dues";
 import {
   createReceipt,
+  dismissEmptyReceipt,
   isLineUnresolved,
   listNeedsReviewReceipts,
   listReceiptLinesForChild,
@@ -361,6 +362,42 @@ describe("receipts", () => {
       if (payer) {
         await getSupabaseClient().from("payers").delete().eq("id", payer.id);
       }
+    }
+  });
+
+  test("dismissEmptyReceipt clears a zero-line needs_review receipt from the queue, keeping its raw payload", async () => {
+    const marker = `dismiss-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const receipt = await createReceipt({ source: "morning_webhook", rawPayload: marker, lines: [] });
+    try {
+      expect(receipt.status).toBe("needs_review");
+      expect((await listNeedsReviewReceipts()).find((r) => r.id === receipt.id)).toBeTruthy();
+
+      await dismissEmptyReceipt(receipt.id);
+
+      expect((await listNeedsReviewReceipts()).find((r) => r.id === receipt.id)).toBeFalsy();
+      const { data, error } = await getSupabaseClient()
+        .from("receipts")
+        .select("raw_payload")
+        .eq("id", receipt.id)
+        .single();
+      if (error) throw error;
+      expect((data as { raw_payload: unknown }).raw_payload).toBe(marker);
+    } finally {
+      await getSupabaseClient().from("receipts").delete().eq("id", receipt.id);
+    }
+  });
+
+  test("dismissEmptyReceipt refuses a receipt that has lines to resolve", async () => {
+    const receipt = await createReceipt({
+      source: "morning_webhook",
+      lines: [{ month: "2026-10-01", amount: 300 }],
+    });
+    try {
+      await expect(dismissEmptyReceipt(receipt.id)).rejects.toThrow(/has lines/);
+      expect((await listNeedsReviewReceipts()).find((r) => r.id === receipt.id)).toBeTruthy();
+    } finally {
+      await getSupabaseClient().from("receipt_lines").delete().eq("receipt_id", receipt.id);
+      await getSupabaseClient().from("receipts").delete().eq("id", receipt.id);
     }
   });
 });

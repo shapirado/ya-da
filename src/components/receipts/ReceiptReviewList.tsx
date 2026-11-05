@@ -45,10 +45,13 @@ export type ReceiptReviewListProps = {
   families: RecordPaymentFamily[];
   childrenByPayer: Record<string, RecordPaymentChild[]>;
   onResolve: (lineId: string, input: ResolveLineInput) => Promise<void>;
+  // Marks a receipt with no lines at all as handled (nothing to resolve).
+  onDismiss?: (receiptId: string) => Promise<void>;
 };
 
 const RESOLVE_ERROR = "לא הצלחנו לשמור את השיוך, נסי שוב";
 const SPLIT_INVALID_ERROR = "יש להזין סכום תקין לכל שורה";
+const DISMISS_ERROR = "לא הצלחנו לסמן את הקבלה כטופלה, נסי שוב";
 
 // One line's pending assignment, before it is written. `needsAmount` lines
 // get their amount from the split step.
@@ -95,11 +98,25 @@ export default function ReceiptReviewList({
   families,
   childrenByPayer,
   onResolve,
+  onDismiss,
 }: ReceiptReviewListProps) {
   const [openReceiptId, setOpenReceiptId] = useState<string | null>(null);
   const [split, setSplit] = useState<SplitState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedRaw, setExpandedRaw] = useState<Record<string, boolean>>({});
+  const [dismissError, setDismissError] = useState<{ receiptId: string; message: string } | null>(
+    null,
+  );
+
+  async function handleDismiss(receiptId: string) {
+    if (!onDismiss) return;
+    try {
+      await onDismiss(receiptId);
+      setDismissError(null);
+    } catch {
+      setDismissError({ receiptId, message: DISMISS_ERROR });
+    }
+  }
 
   const openItem = items.find((item) => item.receiptId === openReceiptId);
 
@@ -247,9 +264,22 @@ export default function ReceiptReviewList({
           <div key={item.receiptId} className="yd-card yd-pad yd-stack">
             <div className="yd-row" style={{ justifyContent: "space-between" }}>
               <span>
-                {item.rawPayerName ?? "קבלה לא מזוהה"} · {pending.length} שורות לא משויכות
+                {item.rawPayerName ?? "קבלה לא מזוהה"} ·{" "}
+                {item.lines.length === 0
+                  ? "אין בקבלה שורות תשלום לשיוך"
+                  : `${pending.length} שורות לא משויכות`}
               </span>
-              {needsCells ? (
+              {item.lines.length === 0 ? (
+                onDismiss ? (
+                  <button
+                    type="button"
+                    className="yd-btn secondary sm"
+                    onClick={() => handleDismiss(item.receiptId)}
+                  >
+                    סימון כטופלה
+                  </button>
+                ) : null
+              ) : needsCells ? (
                 <button
                   type="button"
                   className="yd-btn primary sm"
@@ -275,6 +305,12 @@ export default function ReceiptReviewList({
                 </button>
               ) : null}
             </div>
+
+            {dismissError?.receiptId === item.receiptId && (
+              <p className="yd-login-error" role="alert">
+                {dismissError.message}
+              </p>
+            )}
 
             {splitOpen && (
               <div className="yd-stack" aria-label="חלוקת הסכום">

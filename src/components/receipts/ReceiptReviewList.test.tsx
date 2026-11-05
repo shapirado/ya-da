@@ -128,4 +128,36 @@ describe("ReceiptReviewList", () => {
     expect(input).toMatchObject({ payerId: "payer-1", childId: "child-1", month: "2026-10-01" });
     expect(input.amount).toBeUndefined();
   });
+
+  it("offers 'mark handled' for a receipt with no lines, and calls onDismiss", async () => {
+    const onDismiss = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ReceiptReviewList
+        items={[{ receiptId: "r-empty", rawPayload: "not json", lines: [] }]}
+        families={families}
+        childrenByPayer={childrenByPayer}
+        onResolve={vi.fn()}
+        onDismiss={onDismiss}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "שיוך למשפחה" })).not.toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "סימון כטופלה" }));
+    });
+    expect(onDismiss).toHaveBeenCalledWith("r-empty");
+  });
+
+  it("does not offer 'mark handled' for a receipt that has lines", () => {
+    render(
+      <ReceiptReviewList
+        items={[multiCellManualItem()]}
+        families={families}
+        childrenByPayer={childrenByPayer}
+        onResolve={vi.fn()}
+        onDismiss={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "סימון כטופלה" })).not.toBeInTheDocument();
+  });
 });

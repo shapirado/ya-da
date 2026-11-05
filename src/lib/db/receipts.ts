@@ -206,6 +206,37 @@ export async function resolveReceiptLine(
   return updatedLine;
 }
 
+// Clears a needs_review receipt that has no lines at all (a delivery whose
+// signature failed, that couldn't be parsed, wasn't a type-320 document, or
+// errored mid-processing) — there is nothing on it to resolve, so the only
+// possible action is "handled". It is marked matched: with zero lines it
+// contributes nothing to any child's paid months, and matched receipts are
+// already excluded from the review queue. The raw payload is kept.
+export async function dismissEmptyReceipt(receiptId: string): Promise<void> {
+  const client = getSupabaseClient();
+
+  const { data, error } = await client
+    .from("receipts")
+    .select("id, status, receipt_lines(id)")
+    .eq("id", receiptId)
+    .single();
+  if (error) throw error;
+  const row = data as unknown as { status: ReceiptStatus; receipt_lines: Array<{ id: string }> };
+  if (row.status !== "needs_review") {
+    throw new Error(`Receipt ${receiptId} is not awaiting review`);
+  }
+  if (row.receipt_lines.length > 0) {
+    throw new Error(`Receipt ${receiptId} has lines; resolve them instead of dismissing`);
+  }
+
+  const { error: updateError } = await client
+    .from("receipts")
+    .update({ status: "matched" })
+    .eq("id", receiptId)
+    .eq("status", "needs_review");
+  if (updateError) throw updateError;
+}
+
 export async function listReceiptLinesForChild(childId: string): Promise<ReceiptLineRow[]> {
   const { data, error } = await getSupabaseClient()
     .from("receipt_lines")

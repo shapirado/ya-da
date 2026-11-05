@@ -6,7 +6,7 @@ import { listChildrenWithPayer } from "@/src/lib/db/children";
 import { listPayers } from "@/src/lib/db/payers";
 import { listNeedsReviewReceipts } from "@/src/lib/db/receipts";
 import { parseRecipientName } from "@/src/lib/morning";
-import { resolveReceipt, type ResolveReceiptLineInput } from "./actions";
+import { dismissReceipt, resolveReceipt, type ResolveReceiptLineInput } from "./actions";
 
 // Always show the live needs-review queue rather than a build-time snapshot.
 export const dynamic = "force-dynamic";
@@ -59,6 +59,11 @@ export default async function ReceiptsPage() {
     await resolveReceipt(lineId, input);
   }
 
+  async function handleDismiss(receiptId: string) {
+    "use server";
+    await dismissReceipt(receiptId);
+  }
+
   return (
     <AppShell>
       <div className="yd-stack">
@@ -68,6 +73,7 @@ export default async function ReceiptsPage() {
           families={families}
           childrenByPayer={childrenByPayer}
           onResolve={handleResolve}
+          onDismiss={handleDismiss}
         />
       </div>
     </AppShell>
