@@ -28,7 +28,9 @@ export async function POST(request: Request): Promise<Response> {
   const secret = process.env.MORNING_WEBHOOK_SECRET;
 
   if (!secret) {
-    console.log("[morning webhook] MORNING_WEBHOOK_SECRET not set; skipping signature verification");
+    console.log(
+      "[morning webhook] MORNING_WEBHOOK_SECRET not set; delivery is unauthenticated, storing for review without auto-matching",
+    );
   }
 
   try {
@@ -66,12 +68,22 @@ export async function POST(request: Request): Promise<Response> {
         }
 
         const { lines } = await resolveDocumentCreatedLines(payload);
-        await createReceipt({ source: "morning_webhook", rawPayload: parsed, lines });
+        // Without a configured secret nothing proves this delivery came from
+        // Morning (the path is guessable), so never auto-match it: drop the
+        // resolved payer/child so the receipt lands in needs_review and its
+        // lines can't count toward any child's paid months until a human
+        // assigns them. Month and amount are kept to speed up that review.
+        const storedLines = secret
+          ? lines
+          : lines.map((line) => ({ month: line.month, amount: line.amount }));
+        await createReceipt({ source: "morning_webhook", rawPayload: parsed, lines: storedLines });
         return ACK();
       }
 
       if (topic === CLIENT_CREATED_TOPIC) {
-        await processClientCreated(parsed as MorningClientPayload);
+        // Same reasoning as above: an unauthenticated delivery must not
+        // write contact details onto a real payer.
+        if (secret) await processClientCreated(parsed as MorningClientPayload);
         return ACK();
       }
 

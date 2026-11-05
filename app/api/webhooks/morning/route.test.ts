@@ -3,7 +3,7 @@ import { createHmac } from "crypto";
 import { getSupabaseClient } from "@/src/lib/db/client";
 import { createChild } from "@/src/lib/db/children";
 import { createPayer } from "@/src/lib/db/payers";
-import { listNeedsReviewReceipts } from "@/src/lib/db/receipts";
+import { listNeedsReviewReceipts, listReceiptLinesForChild } from "@/src/lib/db/receipts";
 import { POST } from "./route";
 
 function uniqueSuffix(): string {
@@ -51,7 +51,8 @@ describe("POST /api/webhooks/morning", () => {
     await cleanupReceiptByMarker(marker);
   });
 
-  test("document/created type 320 with a resolvable payer+child becomes a matched receipt", async () => {
+  test("document/created type 320 with a resolvable payer+child and a valid signature becomes a matched receipt", async () => {
+    process.env.MORNING_WEBHOOK_SECRET = "test-secret";
     const suffix = uniqueSuffix();
     const payer = await createPayer({ displayName: `צפי ברנר ${suffix}`, role: "mom" });
     const { data: groupData, error: groupError } = await getSupabaseClient()
@@ -79,8 +80,13 @@ describe("POST /api/webhooks/morning", () => {
         total: 300,
       };
 
+      const body = JSON.stringify(payload);
+      const signature = createHmac("sha256", "test-secret").update(body, "utf8").digest("hex");
       const res = await POST(
-        postRequest(JSON.stringify(payload), { "x-webhook-topic": "document/created" }),
+        postRequest(body, {
+          "x-webhook-topic": "document/created",
+          "x-webhook-signature": signature,
+        }),
       );
       expect(res.status).toBe(200);
 
@@ -103,6 +109,55 @@ describe("POST /api/webhooks/morning", () => {
       if (receiptIds.length > 0) {
         await getSupabaseClient().from("receipts").delete().in("id", receiptIds);
       }
+      await getSupabaseClient().from("children").delete().eq("id", child.id);
+      await getSupabaseClient().from("class_groups").delete().eq("id", classGroupId);
+      await getSupabaseClient().from("payers").delete().eq("id", payer.id);
+    }
+  });
+
+  test("with no MORNING_WEBHOOK_SECRET, a fully resolvable receipt is NOT auto-matched and doesn't count for the child", async () => {
+    delete process.env.MORNING_WEBHOOK_SECRET;
+    const suffix = uniqueSuffix();
+    const payer = await createPayer({ displayName: `נועה שגיא ${suffix}`, role: "mom" });
+    const { data: groupData, error: groupError } = await getSupabaseClient()
+      .from("class_groups")
+      .insert({ day: `day-${suffix}`, time: "09:00", color: "#112233" })
+      .select()
+      .single();
+    if (groupError) throw groupError;
+    const classGroupId = groupData!.id as string;
+    const child = await createChild({
+      firstName: `תמר ${suffix}`,
+      familyName: "שגיא",
+      classGroupId,
+      gender: "girl",
+      payerId: payer.id,
+      enrollmentStart: "2026-01-01",
+    });
+
+    try {
+      const payload = {
+        type: 320,
+        recipient: { name: `${payer.displayName} (${child.firstName})` },
+        items: [{ description: "אוקטובר", sku: "חוג אומנות", price: 300, quantity: 1 }],
+        date: "2026-10-15",
+        total: 300,
+      };
+      const res = await POST(
+        postRequest(JSON.stringify(payload), { "x-webhook-topic": "document/created" }),
+      );
+      expect(res.status).toBe(200);
+
+      const needsReview = await listNeedsReviewReceipts();
+      const found = needsReview.find((r) => JSON.stringify(r.rawPayload ?? {}).includes(suffix));
+      expect(found).toBeTruthy();
+      expect(found!.status).toBe("needs_review");
+      expect(found!.lines).toHaveLength(1);
+      expect(found!.lines[0]).toMatchObject({ childId: null, payerId: null, month: "2026-10-01", amount: 300 });
+
+      expect(await listReceiptLinesForChild(child.id)).toHaveLength(0);
+    } finally {
+      await cleanupReceiptByMarker(suffix);
       await getSupabaseClient().from("children").delete().eq("id", child.id);
       await getSupabaseClient().from("class_groups").delete().eq("id", classGroupId);
       await getSupabaseClient().from("payers").delete().eq("id", payer.id);
@@ -156,7 +211,8 @@ describe("POST /api/webhooks/morning", () => {
     await cleanupReceiptByMarker(suffix);
   });
 
-  test("client/created updates the matched payer's phone/email, preferring mobile", async () => {
+  test("client/created (signed) updates the matched payer's phone/email, preferring mobile", async () => {
+    process.env.MORNING_WEBHOOK_SECRET = "test-secret";
     const suffix = uniqueSuffix();
     const displayName = `מיכל לוי ${suffix}`;
     const payer = await createPayer({ displayName, role: "mom" });
@@ -168,8 +224,10 @@ describe("POST /api/webhooks/morning", () => {
         mobile: "052-9999999",
         emails: ["michal@example.com"],
       };
+      const body = JSON.stringify(payload);
+      const signature = createHmac("sha256", "test-secret").update(body, "utf8").digest("hex");
       const res = await POST(
-        postRequest(JSON.stringify(payload), { "x-webhook-topic": "client/created" }),
+        postRequest(body, { "x-webhook-topic": "client/created", "x-webhook-signature": signature }),
       );
       expect(res.status).toBe(200);
 
@@ -181,6 +239,32 @@ describe("POST /api/webhooks/morning", () => {
       if (error) throw error;
       expect(data!.phone).toBe("052-9999999");
       expect(data!.email).toBe("michal@example.com");
+    } finally {
+      await getSupabaseClient().from("payers").delete().eq("id", payer.id);
+    }
+  });
+
+  test("client/created with no MORNING_WEBHOOK_SECRET does not touch the payer's contact details", async () => {
+    delete process.env.MORNING_WEBHOOK_SECRET;
+    const suffix = uniqueSuffix();
+    const displayName = `רוני כץ ${suffix}`;
+    const payer = await createPayer({ displayName, role: "dad" });
+
+    try {
+      const payload = { name: displayName, mobile: "052-1111111", emails: ["x@example.com"] };
+      const res = await POST(
+        postRequest(JSON.stringify(payload), { "x-webhook-topic": "client/created" }),
+      );
+      expect(res.status).toBe(200);
+
+      const { data, error } = await getSupabaseClient()
+        .from("payers")
+        .select("phone, email")
+        .eq("id", payer.id)
+        .single();
+      if (error) throw error;
+      expect(data!.phone).toBeNull();
+      expect(data!.email).toBeNull();
     } finally {
       await getSupabaseClient().from("payers").delete().eq("id", payer.id);
     }

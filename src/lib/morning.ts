@@ -72,7 +72,8 @@ export function parseRecipientName(
 // Verifies the HMAC-SHA256 hex signature over the RAW request body bytes.
 // When no secret is configured (MORNING_WEBHOOK_SECRET unset — the webhook
 // isn't registered in Morning yet), verification is skipped rather than
-// rejecting every delivery.
+// rejecting every delivery; the route then treats the delivery as
+// unauthenticated and never auto-matches it (see the webhook route).
 export function verifyMorningSignature(
   rawBody: string,
   signatureHeader: string | null | undefined,
