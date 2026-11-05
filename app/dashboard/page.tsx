@@ -66,7 +66,7 @@ export default async function DashboardPage() {
       const className = classGroup
         ? [classGroup.day, classGroup.time].filter(Boolean).join(" ")
         : undefined;
-      const classColor = classGroup?.color;
+      const classColor = classGroup?.color ?? undefined;
       const payerRelation = child.payer?.role
         ? RELATION_LABELS[child.payer.role] ?? child.payer.role
         : undefined;
