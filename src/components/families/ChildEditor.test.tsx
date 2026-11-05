@@ -54,4 +54,20 @@ describe("ChildEditor", () => {
     fireEvent.click(screen.getByText("שמירה"));
     expect(onSetPrice).toHaveBeenCalledWith(sampleChild.id, { amount: 330, effectiveFrom: "2027-01-01" });
   });
+
+  test("an effective-from date mid-month is normalized to the 1st of that month", async () => {
+    const onSetPrice = vi.fn();
+    render(
+      <ChildEditor
+        child={sampleChild}
+        groups={sampleGroups}
+        onUpdateChild={vi.fn()}
+        onSetPrice={onSetPrice}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText(/תעריף חודשי/), { target: { value: "330" } });
+    fireEvent.change(screen.getByLabelText(/החל מ/), { target: { value: "2027-01-15" } });
+    fireEvent.click(screen.getByText("שמירה"));
+    expect(onSetPrice).toHaveBeenCalledWith(sampleChild.id, { amount: 330, effectiveFrom: "2027-01-01" });
+  });
 });

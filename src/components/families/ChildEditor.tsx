@@ -15,6 +15,14 @@ function groupLabel(group: ClassGroup): string {
   return [group.day, group.time].filter(Boolean).join(" ") || group.id;
 }
 
+// priceForMonth compares effective-from dates against 'YYYY-MM-01', so a
+// price always takes effect from the 1st of the month picked, whatever day
+// was chosen in the date input (e.g. 2027-01-15 -> 2027-01-01).
+export function firstOfMonth(date: string): string | null {
+  const match = date.trim().match(/^(\d{4})-(\d{2})/);
+  return match ? `${match[1]}-${match[2]}-01` : null;
+}
+
 export default function ChildEditor({ child, groups, onUpdateChild, onSetPrice }: ChildEditorProps) {
   const [firstName, setFirstName] = useState(child.firstName);
   const [classGroupId, setClassGroupId] = useState(child.classGroupId ?? "");
@@ -33,10 +41,11 @@ export default function ChildEditor({ child, groups, onUpdateChild, onSetPrice }
     }
 
     const trimmedAmount = amount.trim();
-    if (trimmedAmount !== "" && effectiveFrom.trim() !== "") {
+    const effectiveMonth = firstOfMonth(effectiveFrom);
+    if (trimmedAmount !== "" && effectiveMonth !== null) {
       onSetPrice(child.id, {
         amount: Number(trimmedAmount),
-        effectiveFrom: effectiveFrom.trim(),
+        effectiveFrom: effectiveMonth,
       });
       setAmount("");
       setEffectiveFrom("");
