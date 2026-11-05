@@ -2,8 +2,10 @@ import { describe, expect, test } from "vitest";
 import { getSupabaseClient } from "./client";
 import { createPayer } from "./payers";
 import { createChild } from "./children";
+import { computeDueStatus } from "../dues";
 import {
   createReceipt,
+  isLineUnresolved,
   listNeedsReviewReceipts,
   listReceiptLinesForChild,
   resolveReceiptLine,
@@ -221,6 +223,130 @@ describe("receipts", () => {
         .single();
       if (error) throw error;
       expect((data as { method: string | null }).method).toBe("ביט");
+    } finally {
+      if (receiptId) {
+        await getSupabaseClient().from("receipt_lines").delete().eq("receipt_id", receiptId);
+        await getSupabaseClient().from("receipts").delete().eq("id", receiptId);
+      }
+      if (child) {
+        await getSupabaseClient().from("children").delete().eq("id", child.id);
+      }
+      if (classGroupId) {
+        await getSupabaseClient().from("class_groups").delete().eq("id", classGroupId);
+      }
+      if (payer) {
+        await getSupabaseClient().from("payers").delete().eq("id", payer.id);
+      }
+    }
+  });
+
+  test("a multi-cell manual payment's null-amount lines need review; resolving them with entered amounts counts the months as paid", async () => {
+    let payer: Awaited<ReturnType<typeof makePayer>> | undefined;
+    let classGroupId: string | undefined;
+    let child: Awaited<ReturnType<typeof createChild>> | undefined;
+    let receiptId: string | undefined;
+
+    try {
+      payer = await makePayer("payerR5");
+      classGroupId = await makeClassGroup("groupR5");
+      child = await createChild({
+        firstName: `ילדR5-${Date.now()}`,
+        familyName: "גולן",
+        classGroupId,
+        gender: "girl",
+        payerId: payer.id,
+        enrollmentStart: "2026-09-01",
+      });
+      const prices = [{ amount: 300, effectiveFrom: "2026-09-01" }];
+
+      const receipt = await createReceipt({
+        source: "manual",
+        rawPayload: { amount: 600 },
+        lines: [
+          { childId: child.id, month: "2026-09-01", amount: null, payerId: payer.id },
+          { childId: child.id, month: "2026-10-01", amount: null, payerId: payer.id },
+        ],
+      });
+      receiptId = receipt.id;
+
+      const found = (await listNeedsReviewReceipts()).find((r) => r.id === receiptId);
+      expect(found).toBeTruthy();
+      // child/month are known, but the lines still count as needing review.
+      expect(found!.lines.every((line) => line.childId && line.month)).toBe(true);
+      expect(found!.lines.filter(isLineUnresolved).length).toBe(2);
+
+      const before = computeDueStatus(
+        child.enrollmentStart,
+        prices,
+        await listReceiptLinesForChild(child.id),
+        "2026-10-01",
+      );
+      expect(before.map((m) => m.status)).toEqual(["missing", "missing"]);
+
+      // Resolve the first line only: receipt stays needs_review.
+      const [first, second] = found!.lines.sort((a, b) => (a.month! < b.month! ? -1 : 1));
+      const resolvedFirst = await resolveReceiptLine(first.id, {
+        childId: child.id,
+        month: first.month!,
+        amount: 300,
+      });
+      expect(resolvedFirst.amount).toBe(300);
+      expect((await listNeedsReviewReceipts()).find((r) => r.id === receiptId)).toBeTruthy();
+
+      await resolveReceiptLine(second.id, { childId: child.id, month: second.month!, amount: 300 });
+      expect((await listNeedsReviewReceipts()).find((r) => r.id === receiptId)).toBeFalsy();
+
+      const after = computeDueStatus(
+        child.enrollmentStart,
+        prices,
+        await listReceiptLinesForChild(child.id),
+        "2026-10-01",
+      );
+      expect(after.map((m) => m.status)).toEqual(["paid", "paid"]);
+    } finally {
+      if (receiptId) {
+        await getSupabaseClient().from("receipt_lines").delete().eq("receipt_id", receiptId);
+        await getSupabaseClient().from("receipts").delete().eq("id", receiptId);
+      }
+      if (child) {
+        await getSupabaseClient().from("children").delete().eq("id", child.id);
+      }
+      if (classGroupId) {
+        await getSupabaseClient().from("class_groups").delete().eq("id", classGroupId);
+      }
+      if (payer) {
+        await getSupabaseClient().from("payers").delete().eq("id", payer.id);
+      }
+    }
+  });
+
+  test("resolveReceiptLine without an amount leaves the line's existing amount untouched", async () => {
+    let payer: Awaited<ReturnType<typeof makePayer>> | undefined;
+    let classGroupId: string | undefined;
+    let child: Awaited<ReturnType<typeof createChild>> | undefined;
+    let receiptId: string | undefined;
+
+    try {
+      payer = await makePayer("payerR6");
+      classGroupId = await makeClassGroup("groupR6");
+      child = await createChild({
+        firstName: `ילדR6-${Date.now()}`,
+        familyName: "שחר",
+        classGroupId,
+        gender: "boy",
+        payerId: payer.id,
+        enrollmentStart: "2026-09-01",
+      });
+
+      const receipt = await createReceipt({
+        source: "morning_webhook",
+        lines: [{ month: "2026-10-01", amount: 250 }],
+      });
+      receiptId = receipt.id;
+      const line = (await listNeedsReviewReceipts()).find((r) => r.id === receiptId)!.lines[0];
+
+      const resolved = await resolveReceiptLine(line.id, { childId: child.id, month: "2026-10-01" });
+      expect(resolved.amount).toBe(250);
     } finally {
       if (receiptId) {
         await getSupabaseClient().from("receipt_lines").delete().eq("receipt_id", receiptId);

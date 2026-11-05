@@ -1,5 +1,9 @@
 export type ChildPriceRow = { amount: number; effectiveFrom: string }; // 'YYYY-MM-01'
-export type ReceiptLineRow = { month: string; amount: number }; // 'YYYY-MM-01'
+// month/amount may be null on a receipt line that hasn't been resolved yet
+// (an unmatched webhook line has no month; a multi-cell manual payment's
+// lines have no per-line amount until someone splits it in the review
+// queue). Such lines never count toward any month's paid total.
+export type ReceiptLineRow = { month: string | null; amount: number | null }; // 'YYYY-MM-01'
 export type MonthStatus = {
   month: string;
   due: number;
@@ -35,7 +39,9 @@ export function computeDueStatus(
     if (due !== null) {
       const paid = lines
         .filter((line) => line.month === month)
-        .reduce((sum, line) => sum + line.amount, 0);
+        // A null (not-yet-split) amount counts as 0, so the month keeps
+        // showing as missing until the line is resolved with a real amount.
+        .reduce((sum, line) => sum + (line.amount ?? 0), 0);
       const status = paid >= due ? 'paid' : paid > 0 ? 'partial' : 'missing';
       result.push({ month, due, paid, status });
     }

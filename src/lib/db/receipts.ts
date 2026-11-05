@@ -18,7 +18,8 @@ export type ReceiptLine = {
   receiptId: string;
   childId: string | null;
   month: string | null;
-  amount: number;
+  // null until a multi-cell payment's amount has been split per line.
+  amount: number | null;
   payerId: string | null;
 };
 
@@ -30,8 +31,11 @@ export type ReceiptLineRow = {
   id: string;
   receiptId: string;
   childId: string | null;
-  month: string;
-  amount: number;
+  // Either may still be null on a not-yet-resolved line: an unmatched
+  // webhook item has no month; a multi-cell manual payment's lines have no
+  // per-line amount until it is split in the review queue.
+  month: string | null;
+  amount: number | null;
   payerId: string | null;
 };
 
@@ -50,7 +54,7 @@ type ReceiptLineDbRow = {
   receipt_id: string;
   child_id: string | null;
   month: string | null;
-  amount: number;
+  amount: number | null;
   payer_id: string | null;
 };
 
@@ -77,17 +81,25 @@ function mapReceiptLine(row: ReceiptLineDbRow): ReceiptLine {
   };
 }
 
+// A line is resolved only once it has a child, a month AND an amount. A
+// multi-cell manual payment's lines have child/month but a null amount
+// (the whole-receipt total isn't auto-split) — those still need review.
+export function isLineUnresolved(line: {
+  childId?: string | null;
+  month?: string | null;
+  amount?: number | null;
+}): boolean {
+  return !line.childId || !line.month || line.amount === null || line.amount === undefined;
+}
+
 function computeStatus(
-  lines: Array<{ childId?: string; month?: string; amount?: number | null }>,
+  lines: Array<{ childId?: string | null; month?: string | null; amount?: number | null }>,
 ): ReceiptStatus {
   // A receipt with no resolved lines at all (e.g. a payload we couldn't
   // parse, or a webhook delivery we rejected/skipped processing for) stays
   // needs_review rather than vacuously "matched".
   if (lines.length === 0) return "needs_review";
-  const anyUnresolved = lines.some(
-    (line) => !line.childId || !line.month || line.amount === null || line.amount === undefined,
-  );
-  return anyUnresolved ? "needs_review" : "matched";
+  return lines.some(isLineUnresolved) ? "needs_review" : "matched";
 }
 
 export async function createReceipt(input: {
@@ -146,15 +158,25 @@ export async function listNeedsReviewReceipts(): Promise<ReceiptWithLines[]> {
   );
 }
 
+// Assigns a line its child/month and, optionally, its amount. `amount` is
+// what the reviewer entered/confirmed for this line (e.g. their split of a
+// multi-cell payment's total); when omitted the line keeps whatever amount
+// it already has.
 export async function resolveReceiptLine(
   lineId: string,
-  input: { childId: string; month: string },
+  input: { childId: string; month: string; amount?: number },
 ): Promise<ReceiptLine> {
   const client = getSupabaseClient();
 
+  const update: { child_id: string; month: string; amount?: number } = {
+    child_id: input.childId,
+    month: input.month,
+  };
+  if (input.amount !== undefined) update.amount = input.amount;
+
   const { data: updatedLineData, error: updateError } = await client
     .from("receipt_lines")
-    .update({ child_id: input.childId, month: input.month })
+    .update(update)
     .eq("id", lineId)
     .select()
     .single();
@@ -169,8 +191,8 @@ export async function resolveReceiptLine(
 
   const status = computeStatus(
     (siblingLines as ReceiptLineDbRow[]).map((row) => ({
-      childId: row.child_id ?? undefined,
-      month: row.month ?? undefined,
+      childId: row.child_id,
+      month: row.month,
       amount: row.amount,
     })),
   );
@@ -194,7 +216,7 @@ export async function listReceiptLinesForChild(childId: string): Promise<Receipt
     id: row.id,
     receiptId: row.receipt_id,
     childId: row.child_id,
-    month: row.month as string,
+    month: row.month,
     amount: row.amount,
     payerId: row.payer_id,
   }));

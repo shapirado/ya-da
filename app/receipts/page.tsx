@@ -30,17 +30,27 @@ export default async function ReceiptsPage() {
   );
 
   const items: ReceiptReviewItem[] = receipts.map((receipt) => {
-    const recipientName =
+    const payload =
       receipt.rawPayload && typeof receipt.rawPayload === "object"
-        ? (receipt.rawPayload as { recipient?: { name?: string } }).recipient?.name
+        ? (receipt.rawPayload as { recipient?: { name?: string }; amount?: unknown; total?: unknown })
         : undefined;
+    const recipientName = payload?.recipient?.name;
     const parsed = recipientName ? parseRecipientName(recipientName) : null;
+    // Manual entries store the entered total as `amount`; Morning documents
+    // carry `total`.
+    const total = receipt.source === "manual" ? payload?.amount : payload?.total;
 
     return {
       receiptId: receipt.id,
       rawPayload: receipt.rawPayload,
-      lines: receipt.lines.map((line) => ({ id: line.id, childId: line.childId, month: line.month })),
+      lines: receipt.lines.map((line) => ({
+        id: line.id,
+        childId: line.childId,
+        month: line.month,
+        amount: line.amount,
+      })),
       rawPayerName: parsed?.payerName,
+      totalAmount: typeof total === "number" ? total : undefined,
     };
   });
 

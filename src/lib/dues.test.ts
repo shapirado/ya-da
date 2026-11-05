@@ -45,3 +45,36 @@ test('a month before any price row covers it is skipped, not a phantom due', () 
     [], '2026-11-01');
   expect(result).toEqual([{ month: '2026-11-01', due: 300, paid: 0, status: 'missing' }]);
 });
+
+test('a not-yet-split (null amount) line counts as 0, so its month stays missing', () => {
+  const result = computeDueStatus('2026-10-01',
+    [{ amount: 300, effectiveFrom: '2026-09-01' }],
+    [{ month: '2026-10-01', amount: null }, { month: '2026-11-01', amount: null }],
+    '2026-11-01');
+  expect(result).toEqual([
+    { month: '2026-10-01', due: 300, paid: 0, status: 'missing' },
+    { month: '2026-11-01', due: 300, paid: 0, status: 'missing' },
+  ]);
+});
+
+test('once a null-amount line is resolved with a real amount, its month counts as paid', () => {
+  const before = computeDueStatus('2026-10-01',
+    [{ amount: 300, effectiveFrom: '2026-09-01' }],
+    [{ month: '2026-10-01', amount: null }, { month: '2026-11-01', amount: null }],
+    '2026-11-01');
+  expect(before.map((m) => m.status)).toEqual(['missing', 'missing']);
+
+  const after = computeDueStatus('2026-10-01',
+    [{ amount: 300, effectiveFrom: '2026-09-01' }],
+    [{ month: '2026-10-01', amount: 300 }, { month: '2026-11-01', amount: 300 }],
+    '2026-11-01');
+  expect(after.map((m) => m.status)).toEqual(['paid', 'paid']);
+});
+
+test('a line with no month (unmatched webhook line) is ignored, not a crash', () => {
+  const result = computeDueStatus('2026-11-01',
+    [{ amount: 300, effectiveFrom: '2026-09-01' }],
+    [{ month: null, amount: 300 }],
+    '2026-11-01');
+  expect(result).toEqual([{ month: '2026-11-01', due: 300, paid: 0, status: 'missing' }]);
+});

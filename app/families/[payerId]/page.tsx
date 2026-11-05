@@ -14,6 +14,10 @@ import { saveChild, savePrice, savePayer } from "../actions";
 // Always show today's live data rather than a build-time snapshot.
 export const dynamic = "force-dynamic";
 
+// Shown for a payment-history line whose month or amount hasn't been
+// resolved yet in the receipts review queue.
+const NOT_YET_MATCHED = "טרם שויך";
+
 function currentMonth(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
@@ -113,11 +117,16 @@ export default async function FamilyDetailPage({
               ) : (
                 history
                   .slice()
-                  .sort((a, b) => (a.month > b.month ? -1 : 1))
+                  // Lines with no month yet (unmatched webhook items) sort first.
+                  .sort((a, b) => ((a.month ?? "9999") > (b.month ?? "9999") ? -1 : 1))
                   .map((line) => (
                     <div key={line.id} className="yd-row" style={{ justifyContent: "space-between" }}>
-                      <span>{monthLabel(line.month)}</span>
-                      <span>{line.amount.toLocaleString("he-IL")} ₪</span>
+                      <span>{line.month ? monthLabel(line.month) : NOT_YET_MATCHED}</span>
+                      <span>
+                        {line.amount === null
+                          ? NOT_YET_MATCHED
+                          : `${line.amount.toLocaleString("he-IL")} ₪`}
+                      </span>
                     </div>
                   ))
               )}
