@@ -19,13 +19,22 @@ export type MorningDocumentItem = {
   quantity?: number;
 };
 
+export type MorningTransaction = {
+  price: number;
+  currency?: string;
+  date?: string; // YYYY-MM-DD — the actual payment date, not the document's own issue date
+  paymentMethod?: { type?: string };
+};
+
 export type MorningDocumentPayload = {
   type: number;
+  number?: number;
   recipient?: { name?: string };
   items?: MorningDocumentItem[];
-  date?: string; // YYYY-MM-DD
+  date?: string; // YYYY-MM-DD — the document's own issue date
   createdAt?: string;
   total?: number;
+  transactions?: MorningTransaction[];
 };
 
 export type MorningClientPayload = {
@@ -120,12 +129,11 @@ export type ResolvedReceiptLine = {
   month?: string;
   amount: number;
   childId?: string;
-  payerId?: string;
 };
 
 export async function resolveDocumentCreatedLines(
   payload: MorningDocumentPayload,
-): Promise<{ lines: ResolvedReceiptLine[] }> {
+): Promise<{ payerId?: string; lines: ResolvedReceiptLine[] }> {
   const parsedRecipient = parseRecipientName(payload.recipient?.name ?? "");
   const documentDate = documentYearMonth(payload);
 
@@ -153,11 +161,10 @@ export async function resolveDocumentCreatedLines(
       month: monthNumber ? inferItemMonth(documentDate, monthNumber) : undefined,
       amount: item.price * (item.quantity ?? 1),
       childId,
-      payerId,
     };
   });
 
-  return { lines };
+  return { payerId, lines };
 }
 
 // --- client/created -> payer contact fill-in --------------------------------

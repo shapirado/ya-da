@@ -12,6 +12,20 @@ export type RecordPaymentChild = {
 export type RecordPaymentFamily = {
   id: string;
   displayName: string;
+  // When known, shown as a "parent details" panel once this family is
+  // selected — so matching a receipt to a family shows exactly who that
+  // parent is, not just a display name.
+  firstName?: string | null;
+  lastName?: string | null;
+  role?: string | null;
+  phone?: string | null;
+  email?: string | null;
+};
+
+const ROLE_LABELS: Record<string, string> = {
+  mom: "אמא",
+  dad: "אבא",
+  other: "אחר",
 };
 
 export type RecordPaymentLine = {
@@ -123,6 +137,7 @@ export default function RecordPaymentModal({
   );
 
   const children = payerChildren ?? childrenByPayer?.[selectedPayerId] ?? [];
+  const selectedFamily = families?.find((family) => family.id === selectedPayerId);
   const monthList = useMemo(() => months ?? defaultMonths(), [months]);
 
   const [selectedCells, setSelectedCells] = useState<Record<string, Set<string>>>(() => {
@@ -220,12 +235,43 @@ export default function RecordPaymentModal({
               >
                 {families!.map((family) => (
                   <option key={family.id} value={family.id}>
-                    {family.displayName}
+                    {[family.firstName, family.lastName].filter(Boolean).join(" ") || family.displayName}
                   </option>
                 ))}
               </select>
             </div>
           )}
+
+          {selectedFamily &&
+            (selectedFamily.firstName ||
+              selectedFamily.lastName ||
+              selectedFamily.phone ||
+              selectedFamily.email) && (
+              <div className="yd-card yd-pad yd-stack" style={{ background: "var(--paper-sunk)" }}>
+                <span className="small muted">פרטי ההורה</span>
+                <div className="yd-row" style={{ justifyContent: "space-between" }}>
+                  <span>
+                    {[selectedFamily.firstName, selectedFamily.lastName].filter(Boolean).join(" ") ||
+                      selectedFamily.displayName}
+                    {selectedFamily.role && ROLE_LABELS[selectedFamily.role]
+                      ? ` (${ROLE_LABELS[selectedFamily.role]})`
+                      : ""}
+                  </span>
+                </div>
+                {selectedFamily.phone && (
+                  <div className="yd-row" style={{ justifyContent: "space-between" }}>
+                    <span className="small muted">טלפון</span>
+                    <span>{selectedFamily.phone}</span>
+                  </div>
+                )}
+                {selectedFamily.email && (
+                  <div className="yd-row" style={{ justifyContent: "space-between" }}>
+                    <span className="small muted">אימייל</span>
+                    <span>{selectedFamily.email}</span>
+                  </div>
+                )}
+              </div>
+            )}
 
           <div className="yd-payment-grid">
             <div className="yd-payment-grid-row yd-payment-grid-head">

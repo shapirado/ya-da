@@ -33,6 +33,15 @@ export type ReceiptReviewItem = {
   // Morning webhook payload (or a prior manual entry) needs retyping.
   documentDate?: string;
   documentNumber?: string;
+  // The actual payment date, when Morning reported one — can differ from
+  // the document's own issue date (documentDate).
+  paymentDate?: string;
+  // Line-item description(s)/SKU from the Morning document, e.g.
+  // "אוקטובר - חוג אומנות - ממשיכים".
+  product?: string;
+  // When this receipt actually landed in our system (ddmmyyyy) — distinct
+  // from documentDate/paymentDate, which describe the document itself.
+  receivedAt?: string;
 };
 
 export type ResolveLineInput = {
@@ -274,6 +283,16 @@ export default function ReceiptReviewList({
                 {item.lines.length === 0
                   ? "אין בקבלה שורות תשלום לשיוך"
                   : `${pending.length} שורות לא משויכות`}
+                {item.product && <span className="small muted"> · {item.product}</span>}
+                {item.documentNumber && (
+                  <span className="small muted"> · קבלה #{item.documentNumber}</span>
+                )}
+                {item.paymentDate && (
+                  <span className="small muted"> · תאריך תשלום: {item.paymentDate}</span>
+                )}
+                {item.receivedAt && (
+                  <span className="small muted"> · התקבל: {item.receivedAt}</span>
+                )}
               </span>
               {item.lines.length === 0 ? (
                 onDismiss ? (

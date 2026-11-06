@@ -164,10 +164,11 @@ describe("resolveDocumentCreatedLines", () => {
         total: 600,
       };
 
-      const { lines } = await resolveDocumentCreatedLines(payload);
+      const { payerId, lines } = await resolveDocumentCreatedLines(payload);
+      expect(payerId).toBe(payer.id);
       expect(lines).toEqual([
-        { month: "2026-10-01", amount: 300, childId: child.id, payerId: payer.id },
-        { month: "2026-11-01", amount: 300, childId: child.id, payerId: payer.id },
+        { month: "2026-10-01", amount: 300, childId: child.id },
+        { month: "2026-11-01", amount: 300, childId: child.id },
       ]);
     } finally {
       await getSupabaseClient().from("children").delete().eq("id", child.id);
@@ -202,8 +203,9 @@ describe("resolveDocumentCreatedLines", () => {
       total: 300,
     };
 
-    const { lines } = await resolveDocumentCreatedLines(payload);
-    expect(lines).toEqual([{ month: "2026-10-01", amount: 300, childId: undefined, payerId: undefined }]);
+    const { payerId, lines } = await resolveDocumentCreatedLines(payload);
+    expect(payerId).toBeUndefined();
+    expect(lines).toEqual([{ month: "2026-10-01", amount: 300, childId: undefined }]);
   });
 
   test("resolves the payer but leaves childId unset when the child name doesn't match", async () => {
@@ -219,8 +221,9 @@ describe("resolveDocumentCreatedLines", () => {
         total: 300,
       };
 
-      const { lines } = await resolveDocumentCreatedLines(payload);
-      expect(lines).toEqual([{ month: "2026-10-01", amount: 300, childId: undefined, payerId: payer.id }]);
+      const { payerId, lines } = await resolveDocumentCreatedLines(payload);
+      expect(payerId).toBe(payer.id);
+      expect(lines).toEqual([{ month: "2026-10-01", amount: 300, childId: undefined }]);
     } finally {
       await getSupabaseClient().from("payers").delete().eq("id", payer.id);
     }
@@ -264,12 +267,13 @@ describe("resolveDocumentCreatedLines", () => {
         total: 300,
       };
 
-      const { lines } = await resolveDocumentCreatedLines(payload);
+      const { payerId, lines } = await resolveDocumentCreatedLines(payload);
       // Payer resolves unambiguously, but the child name matches two
       // children of the same payer, so childId must be left unset — never
       // silently pick the first match — so computeStatus falls back to
       // needs_review per the task brief's amendment.
-      expect(lines).toEqual([{ month: "2026-10-01", amount: 300, childId: undefined, payerId: payer.id }]);
+      expect(payerId).toBe(payer.id);
+      expect(lines).toEqual([{ month: "2026-10-01", amount: 300, childId: undefined }]);
     } finally {
       await getSupabaseClient().from("children").delete().eq("id", child1.id);
       await getSupabaseClient().from("children").delete().eq("id", child2.id);

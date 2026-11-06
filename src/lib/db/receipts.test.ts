@@ -47,11 +47,13 @@ describe("receipts", () => {
 
       const receipt = await createReceipt({
         source: "manual",
-        lines: [{ childId: child.id, month: "2026-09-01", amount: 500, payerId: payer.id }],
+        payerId: payer.id,
+        lines: [{ childId: child.id, month: "2026-09-01", amount: 500 }],
       });
       receiptId = receipt.id;
 
       expect(receipt.status).toBe("matched");
+      expect(receipt.payerId).toBe(payer.id);
 
       const lines = await listReceiptLinesForChild(child.id);
       expect(lines.length).toBe(1);
@@ -94,9 +96,10 @@ describe("receipts", () => {
 
       const receipt = await createReceipt({
         source: "manual",
+        payerId: payer.id,
         lines: [
-          { childId: child.id, month: "2026-09-01", amount: 500, payerId: payer.id },
-          { amount: 300, payerId: payer.id }, // unresolved: no childId/month
+          { childId: child.id, month: "2026-09-01", amount: 500 },
+          { amount: 300 }, // unresolved: no childId/month
         ],
       });
       receiptId = receipt.id;
@@ -113,9 +116,18 @@ describe("receipts", () => {
       const resolved = await resolveReceiptLine(unresolvedLine!.id, {
         childId: child.id,
         month: "2026-10-01",
+        payerId: payer.id,
       });
       expect(resolved.childId).toBe(child.id);
       expect(resolved.month).toBe("2026-10-01");
+
+      const { data: receiptAfterResolve, error: receiptAfterResolveError } = await getSupabaseClient()
+        .from("receipts")
+        .select("payer_id")
+        .eq("id", receiptId)
+        .single();
+      if (receiptAfterResolveError) throw receiptAfterResolveError;
+      expect((receiptAfterResolve as { payer_id: string }).payer_id).toBe(payer.id);
 
       const stillNeedsReview = await listNeedsReviewReceipts();
       expect(stillNeedsReview.find((r) => r.id === receiptId)).toBeFalsy();
@@ -162,9 +174,10 @@ describe("receipts", () => {
       // whole receipt amount is not auto-split across cells.
       const receipt = await createReceipt({
         source: "manual",
+        payerId: payer.id,
         lines: [
-          { childId: child.id, month: "2026-09-01", amount: null, payerId: payer.id },
-          { childId: child.id, month: "2026-10-01", amount: null, payerId: payer.id },
+          { childId: child.id, month: "2026-09-01", amount: null },
+          { childId: child.id, month: "2026-10-01", amount: null },
         ],
       });
       receiptId = receipt.id;
@@ -211,7 +224,8 @@ describe("receipts", () => {
       const receipt = await createReceipt({
         source: "manual",
         method: "ביט",
-        lines: [{ childId: child.id, month: "2026-09-01", amount: 500, payerId: payer.id }],
+        payerId: payer.id,
+        lines: [{ childId: child.id, month: "2026-09-01", amount: 500 }],
       });
       receiptId = receipt.id;
 
@@ -263,9 +277,10 @@ describe("receipts", () => {
       const receipt = await createReceipt({
         source: "manual",
         rawPayload: { amount: 600 },
+        payerId: payer.id,
         lines: [
-          { childId: child.id, month: "2026-09-01", amount: null, payerId: payer.id },
-          { childId: child.id, month: "2026-10-01", amount: null, payerId: payer.id },
+          { childId: child.id, month: "2026-09-01", amount: null },
+          { childId: child.id, month: "2026-10-01", amount: null },
         ],
       });
       receiptId = receipt.id;

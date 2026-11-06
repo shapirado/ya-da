@@ -12,6 +12,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/families", label: "משפחות", icon: <FamilyIcon /> },
   { href: "/classes", label: "חוגים", icon: <PaletteIcon /> },
   { href: "/receipts", label: "קבלות לבדיקה", icon: <ReceiptIcon /> },
+  { href: "/invoices", label: "יומן קבלות", icon: <LogIcon /> },
 ];
 
 export default function AppShell({ children }: { children: ReactNode }) {
@@ -112,6 +113,12 @@ function FamilyIcon() {
 function ReceiptIcon() {
   return icon(
     "M7 3h10a1 1 0 0 1 1 1v16l-2.5-1.5L13 20l-2.5-1.5L8 20l-2.5-1.5L3 20V4a1 1 0 0 1 1-1zM8 8h8M8 12h8M8 16h5"
+  );
+}
+
+function LogIcon() {
+  return icon(
+    "M4 5h16M4 10h16M4 15h10M4 20h7M19 14v6M16 17l3 3 3-3"
   );
 }
 

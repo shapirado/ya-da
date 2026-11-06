@@ -347,6 +347,7 @@ export async function main(): Promise<void> {
       if (row.status !== "שולם") continue;
       await createReceipt({
         source: "manual",
+        payerId,
         rawPayload: { receiptNumber: row.receiptNumber },
         lines: [{ childId: createdChild.id, month: row.month, amount: DEFAULT_PRICE }],
       });

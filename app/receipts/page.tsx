@@ -4,6 +4,7 @@ import { listChildrenWithPayer } from "@/src/lib/db/children";
 import { listPayers } from "@/src/lib/db/payers";
 import { listNeedsReviewReceipts } from "@/src/lib/db/receipts";
 import { buildReceiptReviewItems } from "@/src/lib/receiptReviewItems";
+import { toRecordPaymentFamily } from "@/src/lib/recordPaymentFamily";
 import { dismissReceipt, resolveReceipt, type ResolveReceiptLineInput } from "./actions";
 
 // Always show the live needs-review queue rather than a build-time snapshot.
@@ -16,7 +17,7 @@ export default async function ReceiptsPage() {
     listChildrenWithPayer(),
   ]);
 
-  const families = payers.map((payer) => ({ id: payer.id, displayName: payer.displayName }));
+  const families = payers.map(toRecordPaymentFamily);
   const childrenByPayer = children.reduce<Record<string, { id: string; name: string }[]>>(
     (map, child) => {
       if (!child.payerId) return map;

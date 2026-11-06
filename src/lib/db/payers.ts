@@ -3,6 +3,8 @@ import { getSupabaseClient } from "./client";
 export type Payer = {
   id: string;
   displayName: string;
+  firstName: string | null;
+  lastName: string | null;
   role: string | null;
   phone: string | null;
   email: string | null;
@@ -10,6 +12,8 @@ export type Payer = {
 
 export type PayerInput = {
   displayName: string;
+  firstName?: string;
+  lastName?: string;
   role: string;
   phone?: string;
   email?: string;
@@ -18,6 +22,8 @@ export type PayerInput = {
 type PayerRow = {
   id: string;
   display_name: string;
+  first_name: string | null;
+  last_name: string | null;
   role: string | null;
   phone: string | null;
   email: string | null;
@@ -27,10 +33,21 @@ function mapPayer(row: PayerRow): Payer {
   return {
     id: row.id,
     displayName: row.display_name,
+    firstName: row.first_name,
+    lastName: row.last_name,
     role: row.role,
     phone: row.phone,
     email: row.email,
   };
+}
+
+// The fullest name we have for a payer: first+last when both are known,
+// falling back to whichever of the two is set, then display_name (which
+// can predate or drift from the split fields — see e.g. a payer whose
+// display_name is just a first name but last_name was filled in later).
+export function payerFullName(payer: Pick<Payer, "displayName" | "firstName" | "lastName">): string {
+  const joined = [payer.firstName, payer.lastName].filter(Boolean).join(" ").trim();
+  return joined || payer.displayName;
 }
 
 export async function listPayers(): Promise<Payer[]> {
@@ -41,6 +58,8 @@ export async function listPayers(): Promise<Payer[]> {
 
 export async function createPayer(input: {
   displayName: string;
+  firstName?: string;
+  lastName?: string;
   // null = not specified (e.g. a bulk import that can't know mom/dad).
   role: string | null;
   phone?: string;
@@ -50,6 +69,8 @@ export async function createPayer(input: {
     .from("payers")
     .insert({
       display_name: input.displayName,
+      first_name: input.firstName ?? null,
+      last_name: input.lastName ?? null,
       role: input.role,
       phone: input.phone ?? null,
       email: input.email ?? null,
@@ -63,6 +84,8 @@ export async function createPayer(input: {
 export async function updatePayer(id: string, input: Partial<PayerInput>): Promise<Payer> {
   const update: Record<string, unknown> = {};
   if (input.displayName !== undefined) update.display_name = input.displayName;
+  if (input.firstName !== undefined) update.first_name = input.firstName;
+  if (input.lastName !== undefined) update.last_name = input.lastName;
   if (input.role !== undefined) update.role = input.role;
   if (input.phone !== undefined) update.phone = input.phone;
   if (input.email !== undefined) update.email = input.email;

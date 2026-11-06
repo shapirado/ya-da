@@ -74,10 +74,12 @@ describe("POST /api/webhooks/morning", () => {
     try {
       const payload = {
         type: 320,
+        number: 1565,
         recipient: { name: `${payer.displayName} (${child.firstName})` },
         items: [{ description: "אוקטובר", sku: "חוג אומנות", price: 300, quantity: 1 }],
         date: "2026-10-15",
         total: 300,
+        transactions: [{ price: 300, date: "2026-10-07" }],
       };
 
       const body = JSON.stringify(payload);
@@ -98,7 +100,16 @@ describe("POST /api/webhooks/morning", () => {
       expect(data!.length).toBe(1);
       expect(data![0].month).toBe("2026-10-01");
       expect(data![0].amount).toBe(300);
-      expect((data![0].receipts as { status: string }).status).toBe("matched");
+      const storedReceipt = data![0].receipts as {
+        status: string;
+        payer_id: string;
+        external_doc_number: string;
+        transaction_date: string;
+      };
+      expect(storedReceipt.status).toBe("matched");
+      expect(storedReceipt.payer_id).toBe(payer.id);
+      expect(storedReceipt.external_doc_number).toBe("1565");
+      expect(storedReceipt.transaction_date).toBe("2026-10-07");
     } finally {
       const { data: lineRows } = await getSupabaseClient()
         .from("receipt_lines")
@@ -153,7 +164,8 @@ describe("POST /api/webhooks/morning", () => {
       expect(found).toBeTruthy();
       expect(found!.status).toBe("needs_review");
       expect(found!.lines).toHaveLength(1);
-      expect(found!.lines[0]).toMatchObject({ childId: null, payerId: null, month: "2026-10-01", amount: 300 });
+      expect(found!.payerId).toBeNull();
+      expect(found!.lines[0]).toMatchObject({ childId: null, month: "2026-10-01", amount: 300 });
 
       expect(await listReceiptLinesForChild(child.id)).toHaveLength(0);
     } finally {

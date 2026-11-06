@@ -67,7 +67,7 @@ export async function POST(request: Request): Promise<Response> {
           return ACK();
         }
 
-        const { lines } = await resolveDocumentCreatedLines(payload);
+        const { payerId, lines } = await resolveDocumentCreatedLines(payload);
         // Without a configured secret nothing proves this delivery came from
         // Morning (the path is guessable), so never auto-match it: drop the
         // resolved payer/child so the receipt lands in needs_review and its
@@ -76,7 +76,17 @@ export async function POST(request: Request): Promise<Response> {
         const storedLines = secret
           ? lines
           : lines.map((line) => ({ month: line.month, amount: line.amount }));
-        await createReceipt({ source: "morning_webhook", rawPayload: parsed, lines: storedLines });
+        // The document number and actual payment date are plain metadata —
+        // never used for auto-matching a child/payer — so they're recorded
+        // regardless of signature verification.
+        await createReceipt({
+          source: "morning_webhook",
+          rawPayload: parsed,
+          payerId: secret ? payerId : undefined,
+          externalDocNumber: payload.number !== undefined ? String(payload.number) : undefined,
+          transactionDate: payload.transactions?.[0]?.date,
+          lines: storedLines,
+        });
         return ACK();
       }
 

@@ -23,6 +23,7 @@ export async function resolveReceipt(lineId: string, input: ResolveReceiptLineIn
     childId: input.childId,
     month: input.month,
     amount: input.amount,
+    payerId: input.payerId,
   });
 
   if (input.payerId && input.rawPayerName) {

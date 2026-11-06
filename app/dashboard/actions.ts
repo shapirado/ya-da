@@ -36,6 +36,8 @@ export async function markMonthPaid(
   await createReceipt({
     source: "manual",
     method: input.method,
+    payerId: child.payerId,
+    externalDocNumber: input.receiptNumber,
     rawPayload: {
       receiptNumber: input.receiptNumber,
     },
@@ -44,7 +46,6 @@ export async function markMonthPaid(
         childId,
         month,
         amount: input.amount,
-        payerId: child.payerId,
       },
     ],
   });
@@ -115,12 +116,14 @@ export async function createStudent(input: CreateStudentInput): Promise<void> {
 export async function recordPayment(input: CreateReceiptInput): Promise<void> {
   const lines =
     input.lines.length === 1
-      ? [{ ...input.lines[0], amount: input.amount, payerId: input.payerId }]
-      : input.lines.map((line) => ({ ...line, payerId: input.payerId }));
+      ? [{ ...input.lines[0], amount: input.amount }]
+      : input.lines;
 
   await createReceipt({
     source: "manual",
     method: input.method,
+    payerId: input.payerId,
+    externalDocNumber: input.receiptNumber,
     rawPayload: {
       amount: input.amount,
       date: input.date,

@@ -4,6 +4,7 @@ import {
   createPayer,
   findPayerByNameOrAlias,
   listPayers,
+  payerFullName,
   recordPayerNameAlias,
   updatePayer,
 } from "./payers";
@@ -51,6 +52,34 @@ describe("payers", () => {
     } finally {
       await getSupabaseClient().from("payers").delete().eq("id", created.id);
     }
+  });
+
+  test("createPayer with firstName/lastName round-trips; updatePayer can change them", async () => {
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const created = await createPayer({
+      displayName: `עידית ברבי ${suffix}`,
+      firstName: `עידית${suffix}`,
+      lastName: "ברבי",
+      role: "mom",
+    });
+
+    try {
+      expect(created.firstName).toBe(`עידית${suffix}`);
+      expect(created.lastName).toBe("ברבי");
+      expect(payerFullName(created)).toBe(`עידית${suffix} ברבי`);
+
+      const updated = await updatePayer(created.id, { lastName: "כהן" });
+      expect(updated.lastName).toBe("כהן");
+      expect(updated.firstName).toBe(`עידית${suffix}`); // untouched
+    } finally {
+      await getSupabaseClient().from("payers").delete().eq("id", created.id);
+    }
+  });
+
+  test("payerFullName falls back to displayName when first/last are unset", () => {
+    expect(
+      payerFullName({ displayName: "משפחת לוי", firstName: null, lastName: null }),
+    ).toBe("משפחת לוי");
   });
 
   test("findPayerByNameOrAlias matches an exact (trimmed) display_name", async () => {

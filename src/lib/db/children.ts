@@ -48,6 +48,8 @@ type ChildWithPayerRow = ChildRow & {
   payers: {
     id: string;
     display_name: string;
+    first_name: string | null;
+    last_name: string | null;
     role: string | null;
     phone: string | null;
     email: string | null;
@@ -94,6 +96,8 @@ export async function listChildrenWithPayer(): Promise<ChildWithPayer[]> {
       ? {
           id: row.payers.id,
           displayName: row.payers.display_name,
+          firstName: row.payers.first_name,
+          lastName: row.payers.last_name,
           role: row.payers.role,
           phone: row.payers.phone,
           email: row.payers.email,

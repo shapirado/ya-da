@@ -12,6 +12,7 @@ import { listPayers } from "@/src/lib/db/payers";
 import { listReceiptLinesForChild, listNeedsReviewReceipts } from "@/src/lib/db/receipts";
 import { computeDueStatus, priceForMonth } from "@/src/lib/dues";
 import { buildReceiptReviewItems } from "@/src/lib/receiptReviewItems";
+import { toRecordPaymentFamily } from "@/src/lib/recordPaymentFamily";
 import {
   markMonthPaid,
   recordPayment,
@@ -54,7 +55,7 @@ export default async function DashboardPage() {
 
   const activeChildren = children.filter((child) => child.active);
 
-  const families = payers.map((payer) => ({ id: payer.id, displayName: payer.displayName }));
+  const families = payers.map(toRecordPaymentFamily);
   const childrenByPayer = activeChildren.reduce<Record<string, { id: string; name: string }[]>>(
     (map, child) => {
       if (!child.payerId) return map;
