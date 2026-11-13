@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Rubik", system-ui, sans-serif;
+  --color-page: #F4F5F7;
+  --color-ink: #17161C;
+  --color-muted: #5C5A66;
+  --color-line: #E3E4EA;
+  --color-line-strong: #D5D6DE;
+  --color-accent: #3446C4;
+  --color-accent-dark: #26339A;
+  --color-accent-soft: #E9ECFB;
+  --color-ok: #1E6E46;
+  --color-ok-soft: #E3F4EA;
+  --color-bad: #A61B12;
+  --color-bad-soft: #FDE8E6;
+  --color-warn: #8A4F00;
+  --color-warn-soft: #FCF0DC;
+  --color-wa: #157A47;
+  --color-nav: #17161C;
+  --color-nav-active: #2C2B33;
+}
+
+html, body { background: var(--color-page); color: var(--color-ink); }
+body { font-variant-numeric: tabular-nums; }
+
+@utility card { @apply bg-white border border-line rounded-[18px] p-5; }
+@utility btn { @apply inline-flex items-center justify-center gap-2 min-h-11 px-4 rounded-xl font-semibold text-[15px] cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
+@utility btn-primary { @apply btn bg-accent text-white hover:bg-accent-dark; }
+@utility btn-secondary { @apply btn bg-white text-ink border border-line-strong hover:bg-page font-medium; }
+@utility btn-wa { @apply btn bg-wa text-white hover:brightness-110; }
+@utility btn-danger { @apply btn bg-white text-bad border border-line-strong hover:bg-bad-soft font-medium; }
+@utility input { @apply min-h-11 px-3 rounded-[10px] border border-line-strong bg-white text-[15px] text-ink w-full; }
+@utility label { @apply flex flex-col gap-1.5 text-sm; }
+@utility chip { @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[13px]; }
+@utility th { @apply font-medium text-[13px] text-muted text-right px-2.5 py-2 border-b border-line whitespace-nowrap; }
+@utility td { @apply px-2.5 py-3 border-b border-[#EEEFF3] align-middle; }
+
+@keyframes ydspin { to { transform: rotate(360deg); } }
+@utility spinner { width: 14px; height: 14px; border-radius: 9999px; border: 2px solid #B8C0F0; border-top-color: var(--color-accent); animation: ydspin .9s linear infinite; flex: none; }
