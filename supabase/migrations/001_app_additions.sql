@@ -35,6 +35,4 @@ create table if not exists public.reminder_log (
 -- The settings row the app reads (prices are set from the Activities screen).
 insert into public.settings (id) values ('default') on conflict (id) do nothing;
 
--- Aliases point at a Morning customer.
-create index if not exists payer_name_aliases_payer_idx on public.payer_name_aliases(payer_id);
-create unique index if not exists payer_name_aliases_unique on public.payer_name_aliases(payer_id, raw_name);
+-- payer_name_aliases needs nothing here: one row per Morning customer (morning_customer_id PK, raw_name text[]).

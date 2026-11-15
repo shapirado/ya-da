@@ -28,7 +28,7 @@ export type Charge = {
   price: number;
   paid: number;
   due: number;
-  status: 'paid' | 'partial' | 'unpaid';
+  status: 'paid' | 'deposit' | 'partial' | 'unpaid';
   started: boolean;
   morningItemId: string | null;
   payerId: string | null;
@@ -38,7 +38,9 @@ export const CLASS_TYPE = 'חוג';
 export const CAMP_TYPE = 'קייטנה';
 
 export function isClass(a: Activity): boolean {
-  if (a.activity_type) return a.activity_type.trim() === CLASS_TYPE;
+  // activity_type holds "קייטנה" or a חוג variant such as "חוג" / "חוג אומנות"
+  const t = a.activity_type?.trim();
+  if (t) return t.startsWith(CLASS_TYPE);
   return !!a.class_group_id;
 }
 
@@ -107,7 +109,8 @@ export function allCharges(m: Model): Charge[] {
     if (!a || !c) continue;
     const price = effectivePrice(l, a, m.settings);
     const paid = paidOf(l, price);
-    const status = l.payment_status === 'paid' ? 'paid' : statusFor(price, paid);
+    const raw = typeof l.payment_status === 'string' ? l.payment_status.trim() : '';
+    const status = raw === 'paid' ? 'paid' : raw === 'deposit' ? 'deposit' : statusFor(price, paid);
     out.push({
       linkId: l.id,
       childId: c.id,

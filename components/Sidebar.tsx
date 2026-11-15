@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { SignOutButton } from '@clerk/nextjs';
+import { MorningTest } from './MorningTest';
 
 const ITEMS = [
   { href: '/', label: 'לוח בקרה', icon: <><rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" /><rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" /></> },
@@ -46,6 +47,7 @@ export function Sidebar({ morningOk, email }: { morningOk: boolean; email: strin
           {morningOk ? 'מחוברת' : 'לא מוגדר'}
         </span>
       </div>
+      <MorningTest />
       <div className="mt-2 px-2 flex items-center justify-between gap-2 text-xs text-[#B9B7C2]">
         <span dir="ltr" className="truncate" title={email}>{email}</span>
         <SignOutButton redirectUrl="/sign-in">

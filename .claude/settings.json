@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:developers.morning.co)",
+      "ClaudeInChromeDomain(developers.morning.co)"
+    ]
+  }
+}

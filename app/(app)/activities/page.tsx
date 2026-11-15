@@ -6,6 +6,7 @@ import { changeGroupPrice, createClassGroup, generateMonths, saveCamp, saveSetti
 import { Dot, PageHeader, SWATCHES } from '@/components/ui';
 import { Flash } from '@/components/Flash';
 import { SubmitButton } from '@/components/SubmitButton';
+import { NavSelect } from '@/components/NavSelect';
 
 type SP = { g?: string; future?: string; camp?: string; ok?: string; err?: string };
 
@@ -98,7 +99,17 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
             </section>
           )}
 
-          <h2 className="mx-1 mt-2 mb-0 text-[17px] text-muted font-medium">קייטנות · רשומה אחת לכל קייטנה</h2>
+          <div className="mx-1 mt-2 mb-0 flex flex-wrap items-center justify-between gap-2.5">
+            <h2 className="m-0 text-[17px] text-muted font-medium">קייטנות · רשומה אחת לכל קייטנה</h2>
+            {camps.length > 1 && (
+              <NavSelect
+                label="בחירת קייטנה"
+                placeholder="בחירת קייטנה"
+                value={editCamp && editCamp !== 'new' ? String(editCamp.id) : ''}
+                options={camps.map((c) => ({ value: String(c.id), label: c.name || 'קייטנה', href: `/activities?camp=${c.id}${sel ? `&g=${sel.id}` : ''}#camp-form` }))}
+              />
+            )}
+          </div>
           <div className="grid gap-2.5 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
             {camps.map((c) => {
               const rows = charges.filter((x) => x.activityId === c.id);
@@ -127,8 +138,7 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
               <div className="grid grid-cols-2 gap-2.5">
                 <label className="label">מתאריך<input type="date" name="start" defaultValue={editCamp === 'new' ? '' : editCamp.start_date || ''} className="input" /></label>
                 <label className="label">עד תאריך<input type="date" name="end" defaultValue={editCamp === 'new' ? '' : editCamp.end_date || ''} className="input" /></label>
-                <label className="label">מחיר (₪)<input name="price" inputMode="decimal" defaultValue={editCamp === 'new' ? '' : editCamp.default_price ?? ''} className="input" /></label>
-                <label className="label">מזהה פריט ב-Morning<input name="item" dir="ltr" defaultValue={editCamp === 'new' ? '' : editCamp.morning_item_id || ''} className="input" placeholder="לא חובה" /></label>
+                <label className="label">מחיר (₪)<input name="price" inputMode="decimal" defaultValue={editCamp === 'new' ? '' : editCamp.default_price ?? ''} className="input" /></label>                <label className="label">מזהה פריט ב-Morning<input name="item" dir="ltr" defaultValue={editCamp === 'new' ? '' : editCamp.morning_item_id || ''} className="input" placeholder="לא חובה" /></label>
               </div>
               <ColorPicker value={editCamp === 'new' ? '#8E5BD9' : editCamp.color || '#8E5BD9'} />
               <div className="flex gap-2.5">

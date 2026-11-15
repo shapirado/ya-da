@@ -18,11 +18,12 @@ export function PageHeader({ title, sub, children }: { title: string; sub?: Reac
 
 const STATUS = {
   paid: { label: 'שולם', cls: 'bg-ok-soft text-ok' },
+  deposit: { label: 'מקדמה', cls: 'bg-accent-soft text-accent-dark' },
   partial: { label: 'שולם חלקית', cls: 'bg-warn-soft text-warn' },
   unpaid: { label: 'לא שולם', cls: 'bg-bad-soft text-bad' },
 } as const;
 
-export function StatusChip({ status }: { status: 'paid' | 'partial' | 'unpaid' }) {
+export function StatusChip({ status }: { status: 'paid' | 'deposit' | 'partial' | 'unpaid' }) {
   const s = STATUS[status];
   return <span className={`chip ${s.cls}`}>{s.label}</span>;
 }

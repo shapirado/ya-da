@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import { loadModel, loadRecentPayments } from '@/lib/data';
-import { allCharges, familyDebts, fmtMoney, groupLabel, isClass, isStarted, maps } from '@/lib/billing';
+import { allCharges, childName, familyDebts, fmtMoney, groupLabel, isClass, isStarted, maps } from '@/lib/billing';
 import { fmtDate, hebrewWeekday, monthName, monthStart } from '@/lib/dates';
-import { Dot, Method, PageHeader, WhatsAppIcon } from '@/components/ui';
+import { Dot, GenderIcon, Method, PageHeader, StatusChip, WhatsAppIcon } from '@/components/ui';
 
-export default async function Dashboard() {
+export default async function Dashboard({ searchParams }: { searchParams: Promise<{ g?: string; c?: string }> }) {
+  const sp = await searchParams;
   const [m, recent] = await Promise.all([loadModel(), loadRecentPayments(6)]);
   const mp = maps(m);
   const thisMonth = monthStart(m.today);
@@ -27,11 +28,33 @@ export default async function Dashboard() {
   }).sort((a, b) => groupLabel(a.g).localeCompare(groupLabel(b.g), 'he'));
 
   const camps = m.activities
-    .filter((a) => !isClass(a) && a.end_date && a.end_date >= m.today)
+    .filter((a) => !isClass(a))
     .map((a) => {
       const rows = charges.filter((c) => c.activityId === a.id);
-      return { a, count: rows.length, unpaid: rows.filter((r) => r.status !== 'paid').length };
-    });
+      const by = (s: string) => rows.filter((r) => r.status === s).length;
+      return { a, count: rows.length, unpaid: rows.length - by('paid'), deposit: by('deposit'), partial: by('partial'), open: by('unpaid') };
+    })
+    // Upcoming camps, and past ones that still have open payments
+    .filter(({ a, unpaid }) => (a.start_date && a.start_date >= m.today) || unpaid > 0)
+    .sort((x, y) => (x.a.start_date || '').localeCompare(y.a.start_date || ''));
+
+  // A clicked group card shows its children in the side panel instead of the family debts
+  const selGroup = sp.g ? m.groups.find((g) => g.id === sp.g) : undefined;
+  const groupKids = selGroup
+    ? monthCharges
+        .filter((c) => mp.activities.get(c.activityId)?.class_group_id === selGroup.id)
+        .sort((a, b) => a.childName.localeCompare(b.childName, 'he'))
+    : [];
+  // …and a clicked camp row shows the children registered to that camp
+  const selCamp = !selGroup && sp.c ? camps.find(({ a }) => String(a.id) === sp.c)?.a : undefined;
+  const campKids = selCamp
+    ? charges.filter((c) => c.activityId === selCamp.id).sort((a, b) => a.childName.localeCompare(b.childName, 'he'))
+    : [];
+  const sel = selGroup
+    ? { title: `הילדים בחוג ${groupLabel(selGroup)}`, color: selGroup.color || '#5C5A66', square: false, kids: groupKids, empty: 'אין ילדים רשומים לקבוצה החודש', paidLabel: 'שילמו החודש' }
+    : selCamp
+      ? { title: `הילדים ב${selCamp.name || 'קייטנה'}`, color: selCamp.color || '#8E5BD9', square: true, kids: campKids, empty: 'אין ילדים רשומים לקייטנה', paidLabel: 'שילמו במלואו' }
+      : null;
 
   return (
     <>
@@ -55,7 +78,7 @@ export default async function Dashboard() {
           </div>
           <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
             {groups.map(({ g, count, paid, unpaid, price }) => (
-              <Link key={g.id} href={`/activities?g=${g.id}`} title="אפתח את הקבוצה" className="no-underline text-ink border border-line rounded-[14px] p-4 flex flex-col gap-2.5 hover:bg-page">
+              <Link key={g.id} href={selGroup?.id === g.id ? '/' : `/?g=${g.id}`} title="אציג את הילדים בקבוצה" aria-current={selGroup?.id === g.id ? 'true' : undefined} className={`no-underline text-ink rounded-[14px] p-4 flex flex-col gap-2.5 hover:bg-page ${selGroup?.id === g.id ? 'border-2 border-accent bg-[#F7F8FF]' : 'border border-line'}`}>
                 <span className="flex items-center gap-2.5"><Dot color={g.color || '#5C5A66'} size={12} /><span className="font-semibold">{groupLabel(g)}</span></span>
                 <span className="text-[13px] text-muted">{count} ילדים{price != null ? ` · ${fmtMoney(price)} לחודש` : ''}</span>
                 <span className="h-2 rounded bg-[#ECEDF2] overflow-hidden flex">
@@ -66,18 +89,51 @@ export default async function Dashboard() {
             ))}
             {!groups.length && <p className="text-muted m-0">עוד אין קבוצות חוג. <Link href="/activities">אפשר לפתוח אחת כאן</Link></p>}
           </div>
-          {camps.map(({ a, count, unpaid }) => (
-            <div key={a.id} className="border-t border-line pt-3.5 flex flex-wrap gap-3 items-center justify-between">
+          {camps.map(({ a, count, deposit, partial, open }) => (
+            <Link key={a.id} href={selCamp?.id === a.id ? '/' : `/?c=${a.id}`} title="אציג את הילדים בקייטנה" aria-current={selCamp?.id === a.id ? 'true' : undefined}
+              className={`no-underline text-ink rounded-[14px] p-4 flex flex-wrap gap-3 items-center justify-between hover:bg-page ${selCamp?.id === a.id ? 'border-2 border-accent bg-[#F7F8FF]' : 'border border-line'}`}>
               <span className="flex items-center gap-2.5 flex-wrap">
                 <Dot color={a.color || '#8E5BD9'} size={12} square />
                 <b>{a.name}</b>
                 <span className="text-[13px] text-muted">{fmtDate(a.start_date)}–{fmtDate(a.end_date)} · {count} נרשמו</span>
               </span>
-              {unpaid > 0 && <span className="chip bg-warn-soft text-warn">{unpaid} טרם שילמו</span>}
-            </div>
+              <span className="flex gap-1.5 flex-wrap">
+                {deposit > 0 && <span className="chip bg-accent-soft text-accent-dark">{deposit} שילמו מקדמה</span>}
+                {partial > 0 && <span className="chip bg-warn-soft text-warn">{partial} שילמו חלקית</span>}
+                {open > 0 && <span className="chip bg-bad-soft text-bad">{open} טרם שילמו</span>}
+              </span>
+            </Link>
           ))}
         </section>
 
+        {sel ? (
+          <section aria-labelledby="group-kids-h" className="card flex-[2_1_340px] min-w-0 flex flex-col gap-3">
+            <div className="flex justify-between items-center gap-2">
+              <h2 id="group-kids-h" className="m-0 text-[19px] flex items-center gap-2.5">
+                <Dot color={sel.color} size={12} square={sel.square} />{sel.title}
+              </h2>
+              <Link href="/" aria-label="סגירה — חזרה לחובות לפי משפחה" title="אחזור להצגת החובות לפי משפחה" className="w-11 h-11 rounded-xl border border-line bg-white text-ink flex items-center justify-center no-underline">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
+              </Link>
+            </div>
+            <ul className="list-none m-0 p-0 flex flex-col">
+              {sel.kids.map((c) => {
+                const child = mp.children.get(c.childId);
+                return (
+                  <li key={c.linkId} className="flex items-center gap-3 py-2.5 border-b border-[#EEEFF3]">
+                    <Link href={`/children/${c.childId}`} className="flex-1 min-w-0 flex items-center gap-2.5 text-ink no-underline font-medium">
+                      <GenderIcon gender={child?.gender ?? null} />{c.childName}
+                    </Link>
+                    <span className="text-sm text-muted">{fmtMoney(c.price)}</span>
+                    <StatusChip status={c.status} />
+                  </li>
+                );
+              })}
+              {!sel.kids.length && <li className="text-muted py-3">{sel.empty}</li>}
+            </ul>
+            <span className="text-[13px] text-muted">{sel.kids.length} ילדים · {sel.kids.filter((c) => c.status === 'paid').length} {sel.paidLabel}</span>
+          </section>
+        ) : (
         <section aria-labelledby="debt-h" className="card flex-[2_1_340px] min-w-0 flex flex-col gap-3">
           <div className="flex justify-between items-center gap-2">
             <h2 id="debt-h" className="m-0 text-[19px]">חובות לפי משפחה</h2>
@@ -99,6 +155,7 @@ export default async function Dashboard() {
           </ul>
           {debts.length > 0 && <Link href="/reminders" className="btn-wa no-underline">הכנת תזכורות לכל {debts.length} המשפחות</Link>}
         </section>
+        )}
       </div>
 
       <section aria-labelledby="recent-h" className="card flex flex-col gap-3">

@@ -3,6 +3,7 @@
 
 import { db, fetchAll } from './supabase.ts';
 import { todayISO } from './dates.ts';
+import { normName } from './matching.ts';
 import type { Model } from './billing.ts';
 import type { Activity, Alias, Child, ChildActivity, ClassGroup, Payer, PaymentLog, Settings } from './types.ts';
 
@@ -41,8 +42,35 @@ export async function loadModel(): Promise<Model> {
   return { today: todayISO(), groups, activities, children, links, payers: rawPayers.map(toPayer), settings };
 }
 
+type AliasRow = { morning_customer_id: string; raw_name: string[] | string | null };
+const aliasNames = (v: AliasRow['raw_name']): string[] => (Array.isArray(v) ? v : v ? [v] : []).filter(Boolean);
+
 export async function loadAliases(): Promise<Alias[]> {
-  return fetchAll<Alias>('payer_name_aliases');
+  const rows = await fetchAll<AliasRow>('payer_name_aliases', 'morning_customer_id,raw_name');
+  return rows.flatMap((r) => aliasNames(r.raw_name).map((name) => ({ payer_id: r.morning_customer_id, raw_name: name })));
+}
+
+/** Adds a name to the payer's alias array (one row per Morning customer). Returns an error message, or null. */
+export async function addAlias(payerId: string, name: string): Promise<string | null> {
+  const alias = name.trim();
+  if (!alias) return null;
+  const cur = await db().from('payer_name_aliases').select('raw_name').eq('morning_customer_id', payerId).maybeSingle();
+  if (cur.error) return cur.error.message;
+  if (!cur.data) {
+    return (await db().from('payer_name_aliases').insert({ morning_customer_id: payerId, raw_name: [alias] })).error?.message ?? null;
+  }
+  const names = aliasNames((cur.data as AliasRow).raw_name);
+  if (names.some((n) => normName(n) === normName(alias))) return null;
+  return (await db().from('payer_name_aliases').update({ raw_name: [...names, alias] }).eq('morning_customer_id', payerId)).error?.message ?? null;
+}
+
+/** Every logged payment — the scanner's duplicate check reads these. Empty when the table isn't there. */
+export async function loadPaymentLog(): Promise<PaymentLog[]> {
+  try {
+    return await fetchAll<PaymentLog>('payment_log');
+  } catch {
+    return [];
+  }
 }
 
 export async function loadRecentPayments(limit = 8): Promise<PaymentLog[]> {

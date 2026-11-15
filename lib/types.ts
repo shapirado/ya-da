@@ -30,7 +30,7 @@ export type Child = {
   date_created?: string;
 };
 
-export type PaymentStatus = 'unpaid' | 'partial' | 'paid';
+export type PaymentStatus = 'unpaid' | 'deposit' | 'partial' | 'paid';
 
 export type ChildActivity = {
   id: number;
@@ -55,7 +55,9 @@ export type Settings = {
   default_discount_price: number | null;
 };
 
-export type Alias = { id: string; payer_id: string; raw_name: string | null };
+// One alternative name of a payer. The table (payer_name_aliases) holds one row per Morning customer
+// with raw_name as a text[]; loadAliases flattens it to one Alias per name.
+export type Alias = { id?: string; payer_id: string; raw_name: string | null };
 
 export type PaymentMethod = 'bit' | 'paybox' | 'bank' | 'cash' | 'credit' | 'other';
 
@@ -68,6 +70,7 @@ export type PaymentLog = {
   amount: number;
   method: PaymentMethod | string | null;
   note: string | null;
+  reference: string | null;
   morning_document_id: string | null;
   morning_document_number: string | null;
   morning_document_url: string | null;

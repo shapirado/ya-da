@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { allocate, effectivePrice, familyDebts, openCharges, type Model } from './billing.ts';
-import { rankPayers, normName } from './matching.ts';
+import { rankPayers, normName, sameFirstName } from './matching.ts';
 import { fmtDate, monthsBetween, seasonFor, todayISO } from './dates.ts';
 
 const model: Model = {
@@ -61,6 +61,30 @@ test('alias and name matching', () => {
   assert.equal(byFamily[0].payerId, 'p1');
   assert.deepEqual(byFamily[0].matchedChildIds.sort(), ['c1', 'c2']);
   assert.equal(normName('כֹּהֵן'), 'כהנ');
+});
+
+test('children named in the sender line find the family', () => {
+  const kid = (id: string, first: string, payer: string) => ({ id, first_name: first, family_name: null, gender: null, morning_customer_id: payer, morning_customer_id_2: null }) as any;
+  const input = {
+    note: 'דמי הרשמה קייטנת חנוכה', amount: 200, aliases: [], debtByPayer: new Map<string, number>(),
+    payers: [
+      { morning_customer_id: 'right', name: 'משפחת לוי', phone: null, email: null },
+      { morning_customer_id: 'other-sapir', name: 'ספיר כהן', phone: null, email: null },
+      { morning_customer_id: 'ella', name: 'אלה מזרחי', phone: null, email: null },
+    ],
+    children: [kid('k1', 'עמרי', 'right'), kid('k2', 'אלה', 'right'), kid('k3', 'נועה', 'other-sapir')],
+  };
+  // without the reader's help: the name itself is split at "אמא"
+  const plain = rankPayers({ ...input, rawName: 'ספיר אמא עימרי ואלה' });
+  assert.equal(plain[0].payerId, 'right');
+  assert.deepEqual(plain[0].senderChildIds, ['k1', 'k2']); // עימרי ↔ עמרי, ואלה ↔ אלה
+  assert.equal(plain[0].matchedChildIds.length, 0);
+  // "ואלה" is a child, so the payer named אלה is not a candidate
+  assert.ok(!plain.some((r) => r.payerId === 'ella'));
+  // with the reader's fields
+  const read = rankPayers({ ...input, rawName: 'ספיר אמא עימרי ואלה', ownName: 'ספיר', senderChildren: ['עימרי', 'אלה'] });
+  assert.equal(read[0].payerId, 'right');
+  assert.ok(sameFirstName('עימרי', 'עמרי') && !sameFirstName('רוני', 'רן'));
 });
 
 test('dates', () => {

@@ -9,8 +9,7 @@ registrations, monthly class charges, camps, WhatsApp reminders and screenshot �
    - `child_activity.paid_amount` (partial payments; back-fills rows already marked `paid`)
    - `payment_log` (every receipt issued through the app)
    - `reminder_log` (when a WhatsApp reminder was opened per payer)
-   - the `settings` row `id='default'` and a unique index on `payer_name_aliases(payer_id, raw_name)`
-2. **Environment** — copy `.env.example` to `.env.local` (and add the same keys in Vercel → Settings → Environment Variables).
+   - the `settings` row `id='default'`2. **Environment** — copy `.env.example` to `.env.local` (and add the same keys in Vercel → Settings → Environment Variables).
 3. **Login (Clerk)** — in the Clerk dashboard create an application (or reuse the one from your other app),
    enable **Google** as a social connection, and copy the two keys into the env vars. Put the Google
    emails that may use the app in `ALLOWED_EMAILS` (comma-separated). Anyone else who signs in sees
