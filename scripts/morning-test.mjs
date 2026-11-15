@@ -3,7 +3,7 @@
 //   node --env-file=.env.local scripts/morning-test.mjs
 //
 // Keys are read from the environment (never passed on the command line):
-//   MORNING_PROD_API_KEY_ID / MORNING_PROD_API_SECRET, falling back to MORNING_API_KEY_ID / MORNING_API_SECRET.
+//   MORNING_API_KEY_ID / MORNING_API_SECRET.
 // If MORNING_ACCESS_TOKEN is set, the token step is skipped and that token is used as-is.
 
 const BASE = 'https://api.greeninvoice.co.il/api/v1';
@@ -43,8 +43,8 @@ let token = env.MORNING_ACCESS_TOKEN;
 if (token) {
   console.log('Using MORNING_ACCESS_TOKEN from the environment — skipping the token request.');
 } else {
-  const idVar = env.MORNING_PROD_API_KEY_ID ? 'MORNING_PROD_API_KEY_ID' : 'MORNING_API_KEY_ID';
-  const secretVar = idVar.replace('API_KEY_ID', 'API_SECRET');
+  const idVar = 'MORNING_API_KEY_ID';
+  const secretVar = 'MORNING_API_SECRET';
   const id = env[idVar];
   const secret = env[secretVar];
   if (!id || !secret) {

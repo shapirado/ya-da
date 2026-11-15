@@ -40,7 +40,7 @@ you adjust → a receipt is issued in Morning (`MORNING_DOC_TYPE`, default 320),
 ## Things to verify before going live
 
 - **Bit / PayBox in Morning**: payment rows use `type: 10` with `appType` 1 (Bit) / 3 (PayBox) — see `APP_TYPE` in
-  `lib/morning.ts`. Confirm the codes against Morning's API docs for your account (try `MORNING_ENV=sandbox` first).
+  `lib/morning.ts`. Confirm the codes against Morning's API docs for your account.
 - **Document type**: 320 = חשבונית מס/קבלה. If the studio is עוסק פטור, set `MORNING_DOC_TYPE=400` (קבלה).
 - **VAT**: income lines are sent with `vatType: 1` (price includes VAT).
 - **Gemini**: `lib/gemini.ts#extractPayments` can be replaced with your own implementation; keep the return shape.

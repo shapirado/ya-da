@@ -3,50 +3,25 @@
 
 import type { PaymentMethod } from './types.ts';
 
-const PROD_BASE = 'https://api.greeninvoice.co.il/api/v1';
-const SANDBOX_BASE = 'https://sandbox.d.greeninvoice.co.il/api/v1';
-
-// Two separate connections:
-// - "read"  → production account (existing receipts were issued there). Keys: MORNING_PROD_API_KEY_ID/SECRET,
-//   falling back to MORNING_API_KEY_ID/SECRET.
-// - "write" → where new documents are created. MORNING_ENV picks it: "sandbox" (default), a full base URL,
-//   or "production". Keys: MORNING_API_KEY_ID/SECRET.
-type Env = { base: string; idVar: string[]; cached?: { token: string; exp: number } };
-
-const WRITE_BASE = process.env.MORNING_BASE_URL
-  || (process.env.MORNING_ENV?.startsWith('http') ? process.env.MORNING_ENV.replace(/\/$/, '') : null)
-  || (process.env.MORNING_ENV === 'production' ? PROD_BASE : SANDBOX_BASE);
-
-const ENVS = {
-  read: { base: PROD_BASE, idVar: ['MORNING_PROD_API_KEY_ID', 'MORNING_API_KEY_ID'] } as Env,
-  write: { base: WRITE_BASE, idVar: ['MORNING_API_KEY_ID'] } as Env,
-};
-
+// One connection, always the production account. Keys: MORNING_API_KEY_ID / MORNING_API_SECRET.
+const BASE = 'https://api.greeninvoice.co.il/api/v1';
 // The OAuth2 token server lives on a different host than the data API.
-const PROD_TOKEN_URL = 'https://api.morning.co/idp/v1/oauth/token';
-const SANDBOX_TOKEN_URL = 'https://api.sandbox.morning.dev/idp/v1/oauth/token';
+const TOKEN_URL = 'https://api.morning.co/idp/v1/oauth/token';
 
-function tokenUrl(e: Env): string {
-  if (e.base === PROD_BASE) return PROD_TOKEN_URL;
-  // MORNING_TOKEN_URL covers a custom MORNING_BASE_URL; otherwise anything non-production is the sandbox
-  return process.env.MORNING_TOKEN_URL || SANDBOX_TOKEN_URL;
+let cached: { token: string; exp: number } | undefined;
+
+function creds(): { id: string; secret: string } {
+  const id = process.env.MORNING_API_KEY_ID;
+  const secret = process.env.MORNING_API_SECRET;
+  if (id && secret) return { id, secret };
+  throw new Error('חסרים מפתחות Morning (MORNING_API_KEY_ID + MORNING_API_SECRET)');
 }
 
-function creds(e: Env): { id: string; secret: string } {
-  for (const idVar of e.idVar) {
-    const id = process.env[idVar];
-    const secret = process.env[idVar.replace('API_KEY_ID', 'API_SECRET')];
-    if (id && secret) return { id, secret };
-  }
-  throw new Error(`חסרים מפתחות Morning (${e.idVar[0]} + SECRET)`);
-}
-
-async function token(env: keyof typeof ENVS): Promise<string> {
-  const e = ENVS[env];
-  if (e.cached && e.cached.exp > Date.now()) return e.cached.token;
-  const { id, secret } = creds(e);
-  const url = tokenUrl(e);
-  console.log(`[morning debug] token(${env}): POST ${url} · client id ${id.slice(0, 8)}…${id.slice(-4)} (len ${id.length}) · secret len ${secret.length}`);
+async function token(): Promise<string> {
+  if (cached && cached.exp > Date.now()) return cached.token;
+  const { id, secret } = creds();
+  const url = TOKEN_URL;
+  console.log(`[morning debug] token: POST ${url} · client id ${id.slice(0, 8)}…${id.slice(-4)} (len ${id.length}) · secret len ${secret.length}`);
   // Morning moved authentication to a separate OAuth2 server (the old /account/token now returns 404).
   // Docs: developers.morning.co → Authentication → "Obtain an Access Token"
   const res = await fetch(url, {
@@ -60,19 +35,19 @@ async function token(env: keyof typeof ENVS): Promise<string> {
   try { body = JSON.parse(text); } catch {}
   const tok = body.accessToken;
   // Never log the token itself — only the error body, or the shape of a good answer
-  console.log(`[morning debug] token(${env}) → ${res.status}:`, tok ? `accessToken (len ${tok.length}), expiresAt ${body.expiresAt}` : text.slice(0, 400) || '(גוף ריק)');
+  console.log(`[morning debug] token → ${res.status}:`, tok ? `accessToken (len ${tok.length}), expiresAt ${body.expiresAt}` : text.slice(0, 400) || '(גוף ריק)');
   if (!res.ok || !tok) throw new Error(`Morning: התחברות נכשלה (${res.status}) ${[body.error, body.error_description].filter(Boolean).join(' — ') || text.slice(0, 120) || 'ללא גוף תשובה'}`);
   // expiresAt is a unix timestamp in seconds (tokens live 1 hour); refresh 10 minutes early
   const exp = body.expiresAt ? Number(body.expiresAt) * 1000 - 10 * 60 * 1000 : Date.now() + 50 * 60 * 1000;
-  e.cached = { token: tok, exp };
+  cached = { token: tok, exp };
   return tok;
 }
 
 async function call<T>(path: string, payload: unknown): Promise<T> {
-  console.log(`[morning debug] POST ${ENVS.write.base}${path}:`, JSON.stringify(payload, null, 2));
-  const res = await fetch(`${ENVS.write.base}${path}`, {
+  console.log(`[morning debug] POST ${BASE}${path}:`, JSON.stringify(payload, null, 2));
+  const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token('write')}` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
     body: JSON.stringify(payload),
     cache: 'no-store',
   });
@@ -99,8 +74,7 @@ export async function createMorningClient(input: { name: string; phone?: string;
 export type MorningClientHit = { id: string; name: string; phone: string; email: string; taxId: string; labels: string[] };
 
 /**
- * Searches customers by name in the account new documents are written to (same one createMorningClient uses),
- * so a chosen customer id is valid for the receipt that follows.
+ * Searches customers by name.
  */
 export async function searchMorningClients(name: string): Promise<MorningClientHit[]> {
   const body = await call<{ items?: any[] }>('/clients/search', { name, active: true, page: 1, pageSize: 25 });
@@ -116,7 +90,7 @@ export async function searchMorningClients(name: string): Promise<MorningClientH
 
 export type MorningItemHit = { id: string; name: string; price: number | null };
 
-/** Searches catalogue items by name, in the same account receipts are written to. */
+/** Searches catalogue items by name. */
 export async function searchMorningItems(name: string): Promise<MorningItemHit[]> {
   const body = await call<any>('/items/search', { name, page: 1, pageSize: 25 });
   const list: any[] = Array.isArray(body) ? body : body.items || [];
@@ -203,11 +177,11 @@ export type MorningDocInfo = {
 /** Fetches one document's details (number, date, client, amount, link). */
 export async function fetchDocument(id: string): Promise<MorningDocInfo> {
   const miss: MorningDocInfo = { id, number: null, date: null, clientName: null, amount: null, url: null, ok: false };
-  // Existing receipts live in the production account; let auth failures throw so the UI can tell them apart
-  const auth = await token('read');
+  // let auth failures throw so the UI can tell them apart from a missing document
+  const auth = await token();
   console.log("fetchDocument.InvoiceString="+id)
   try {
-    const res = await fetch(`${ENVS.read.base}/documents/${id}`, {
+    const res = await fetch(`${BASE}/documents/${id}`, {
       headers: { Authorization: `Bearer ${auth}` },
       cache: 'no-store',
     });
@@ -235,18 +209,18 @@ export type MorningTestResult = {
 };
 
 /**
- * Diagnostic: searches customers in the PRODUCTION account and returns the raw response.
- * Uses MORNING_ACCESS_TOKEN when set, otherwise requests a token with the production keys.
+ * Diagnostic: searches customers and returns the raw response.
+ * Uses MORNING_ACCESS_TOKEN when set, otherwise requests a fresh token with the API keys.
  */
 export async function testMorningConnection(): Promise<MorningTestResult> {
-  const url = `${PROD_BASE}/clients/search`;
+  const url = `${BASE}/clients/search`;
   let auth = process.env.MORNING_ACCESS_TOKEN;
   let tokenSource = 'MORNING_ACCESS_TOKEN';
   if (!auth) {
-    tokenSource = `${PROD_TOKEN_URL} (מפתחות production)`;
-    ENVS.read.cached = undefined; // always exercise the token request in a test
+    tokenSource = TOKEN_URL;
+    cached = undefined; // always exercise the token request in a test
     try {
-      auth = await token('read');
+      auth = await token();
     } catch (e) {
       return { tokenSource, url, status: null, body: `שלב קבלת הטוקן נכשל: ${(e as Error).message}` };
     }

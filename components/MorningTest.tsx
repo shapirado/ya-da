@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { testMorning } from '@/app/actions';
 import type { MorningTestResult } from '@/lib/morning';
 
-/** Diagnostic button: runs a customer search against production Morning and shows the raw response. */
+/** Diagnostic button: runs a customer search against Morning and shows the raw response. */
 export function MorningTest() {
   const [pending, start] = useTransition();
   const [result, setResult] = useState<MorningTestResult | null>(null);
@@ -25,7 +25,7 @@ export function MorningTest() {
         type="button"
         onClick={run}
         disabled={pending}
-        title="אחפש לקוחות בחשבון ה-production של Morning ואציג את התשובה"
+        title="אחפש לקוחות ב-Morning ואציג את התשובה"
         className="min-h-11 px-3 rounded-xl border border-[#5C5A66] bg-transparent text-white text-sm cursor-pointer hover:bg-nav-active disabled:opacity-60 disabled:cursor-default"
       >
         {pending ? 'בודקת…' : 'בדיקת חיבור'}

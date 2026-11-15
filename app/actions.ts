@@ -40,7 +40,7 @@ async function must<T>(p: PromiseLike<{ data: T; error: { message: string } | nu
 
 // ---------- diagnostics ----------
 
-/** Sidebar "test connection" button: customer search against production Morning, raw response back. */
+/** Sidebar "test connection" button: customer search against Morning, raw response back. */
 export async function testMorning(): Promise<MorningTestResult> {
   await requireAccess();
   return testMorningConnection();

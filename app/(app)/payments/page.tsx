@@ -78,7 +78,7 @@ async function MorningReceipts() {
     docs = await Promise.all(ids.map((id) => fetchDocument(id)));
     
   } catch (e) {
-    return <Notice tone="warn">לא הצלחתי להתחבר ל-Morning — {e instanceof Error ? e.message : 'שגיאה לא ידועה'}. כדאי לבדוק את מפתחות ה-API ואת MORNING_ENV</Notice>;
+    return <Notice tone="warn">לא הצלחתי להתחבר ל-Morning — {e instanceof Error ? e.message : 'שגיאה לא ידועה'}. כדאי לבדוק את מפתחות ה-API</Notice>;
   }
 
   const sorted = docs.sort((x, y) => (y.date || '').localeCompare(x.date || ''));
