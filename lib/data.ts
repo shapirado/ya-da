@@ -8,10 +8,10 @@ import type { Model } from './billing.ts';
 import type { Activity, Alias, Child, ChildActivity, ClassGroup, Payer, PaymentLog, Settings } from './types.ts';
 
 // temp_parents has Hebrew column names (the Morning customer export).
-export const P_PHONE = 'נייד';
-export const P_PHONE_2 = 'טלפון';
-export const P_EMAILS = 'כתובות מייל';
-const PAYER_SELECT = `morning_customer_id,name,"${P_PHONE}","${P_PHONE_2}","${P_EMAILS}"`;
+export const P_PHONE = 'phone';
+//export const P_PHONE_2 = 'טלפון';
+export const P_EMAILS = 'email';
+const PAYER_SELECT = `morning_customer_id,name,"${P_PHONE}","${P_EMAILS}"`;
 
 type RawPayer = Record<string, string | null> & { morning_customer_id: string; name: string | null };
 
@@ -20,7 +20,7 @@ export function toPayer(r: RawPayer): Payer {
   return {
     morning_customer_id: r.morning_customer_id,
     name: r.name,
-    phone: r[P_PHONE] || r[P_PHONE_2] || null,
+    phone: r[P_PHONE]  || null,
     email: emails[0] || null,
   };
 }
@@ -36,7 +36,7 @@ export async function loadModel(): Promise<Model> {
     fetchAll<Activity>('activities', '*', (q) => q.order('start_date', { ascending: true })),
     fetchAll<Child>('children'),
     fetchAll<ChildActivity>('child_activity'),
-    fetchAll<RawPayer>('temp_parents', PAYER_SELECT),
+    fetchAll<RawPayer>('payer_name_aliases', PAYER_SELECT),
     loadSettings(),
   ]);
   return { today: todayISO(), groups, activities, children, links, payers: rawPayers.map(toPayer), settings };
