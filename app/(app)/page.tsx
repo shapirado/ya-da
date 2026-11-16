@@ -45,6 +45,15 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         .filter((c) => mp.activities.get(c.activityId)?.class_group_id === selGroup.id)
         .sort((a, b) => a.childName.localeCompare(b.childName, 'he'))
     : [];
+  // Each child's debt in this group: every started month still owed (past months + this one)
+  const groupDebt = new Map<string, { total: number; months: number }>();
+  if (selGroup) {
+    for (const c of charges) {
+      if (!c.started || !(c.due > 0) || mp.activities.get(c.activityId)?.class_group_id !== selGroup.id) continue;
+      const d = groupDebt.get(c.childId) || { total: 0, months: 0 };
+      groupDebt.set(c.childId, { total: d.total + c.due, months: d.months + 1 });
+    }
+  }
   // …and a clicked camp row shows the children registered to that camp
   const selCamp = !selGroup && sp.c ? camps.find(({ a }) => String(a.id) === sp.c)?.a : undefined;
   const campKids = selCamp
@@ -119,19 +128,28 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
             <ul className="list-none m-0 p-0 flex flex-col">
               {sel.kids.map((c) => {
                 const child = mp.children.get(c.childId);
+                const debt = selGroup ? groupDebt.get(c.childId) : undefined;
                 return (
                   <li key={c.linkId} className="flex items-center gap-3 py-2.5 border-b border-[#EEEFF3]">
                     <Link href={`/children/${c.childId}`} className="flex-1 min-w-0 flex items-center gap-2.5 text-ink no-underline font-medium">
                       <GenderIcon gender={child?.gender ?? null} />{c.childName}
                     </Link>
-                    <span className="text-sm text-muted">{fmtMoney(c.price)}</span>
-                    <StatusChip status={c.status} />
+                    {selGroup ? (
+                      debt
+                        ? <span className="chip bg-bad-soft text-bad" title="כל החודשים שעוד לא שולמו בחוג הזה, כולל החודש">חוב {fmtMoney(debt.total)}{debt.months > 1 ? ` · ${debt.months} חודשים` : ''}</span>
+                        : <StatusChip status="paid" />
+                    ) : (
+                      <>
+                        <span className="text-sm text-muted">{fmtMoney(c.price)}</span>
+                        <StatusChip status={c.status} />
+                      </>
+                    )}
                   </li>
                 );
               })}
               {!sel.kids.length && <li className="text-muted py-3">{sel.empty}</li>}
             </ul>
-            <span className="text-[13px] text-muted">{sel.kids.length} ילדים · {sel.kids.filter((c) => c.status === 'paid').length} {sel.paidLabel}</span>
+            <span className="text-[13px] text-muted">{sel.kids.length} ילדים · {sel.kids.filter((c) => c.status === 'paid').length} {sel.paidLabel}{selGroup && groupDebt.size > 0 ? ` · ${groupDebt.size} עם חוב בחוג, סה״כ ${fmtMoney([...groupDebt.values()].reduce((t, d) => t + d.total, 0))}` : ''}</span>
           </section>
         ) : (
         <section aria-labelledby="debt-h" className="card flex-[2_1_340px] min-w-0 flex flex-col gap-3">
