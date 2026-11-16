@@ -218,9 +218,9 @@ export async function createChild(fd: FormData) {
     if (!id) fail(back, `${who}: צריך לבחור לקוח/ה מ-Morning או להוסיף כלקוח/ה חדש/ה לפני השמירה`);
     if (!name) fail(back, `${who}: צריך שם`);
     // a Morning customer may already be a payer here
-    const known = await must(db().from('temp_parents').select('morning_customer_id').eq('morning_customer_id', id).limit(1), back) as any[];
+    const known = await must(db().from('payer_name_aliases').select('morning_customer_id').eq('morning_customer_id', id).limit(1), back) as any[];
     if (!known.length) {
-      await must(db().from('temp_parents').insert({
+      await must(db().from('payer_name_aliases').insert({
         morning_customer_id: id, name, [P_PHONE]: s(fd, `${prefix}_phone`) || null, [P_EMAILS]: s(fd, `${prefix}_email`) || null,
       }), back);
     }
@@ -846,10 +846,10 @@ export async function createCustomerFromScan(input: NewCustomerInput): Promise<N
     const inMorning = input.morningClientId ? 'הלקוח קיים ב-Morning' : 'הלקוח נפתח ב-Morning';
 
     // An existing Morning client may already be a payer here
-    const known = await db().from('temp_parents').select('morning_customer_id').eq('morning_customer_id', payerId).limit(1);
+    const known = await db().from('payer_name_aliases').select('morning_customer_id').eq('morning_customer_id', payerId).limit(1);
     if (known.error) return { ok: false, error: `${inMorning} אבל בדיקת המשלמים נכשלה: ${known.error.message}` };
     if (!known.data?.length) {
-      const fail1 = (await db().from('temp_parents').insert({
+      const fail1 = (await db().from('payer_name_aliases').insert({
         morning_customer_id: payerId, name: clientName,
         [P_PHONE]: input.payerPhone.trim() || null, [P_EMAILS]: input.payerEmail.trim() || null,
       })).error;
