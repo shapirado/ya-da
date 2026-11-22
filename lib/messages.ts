@@ -8,14 +8,15 @@ export function firstName(full: string | null | undefined): string {
 /** One personal message per family, listing every open charge and the total. */
 export function reminderMessage(d: FamilyDebt, signature = process.env.STUDIO_SIGNATURE || 'גליה', studioPhone = process.env.STUDIO_PHONE || ''): string {
   const lines = d.charges.map((c) => `• ${c.childFirst} – ${c.label}: ${fmtMoney(c.due)}`);
-  const pay = studioPhone ? `אפשר לשלם בפייבוקס או בהעברה בנקאית לדליה .` : 'אפשר לשלם בביט או בפייבוקס ולשלוח לי צילום מסך.';
+  const pay =`אפשר לשלם בפייבוקס או בהעברה בנקאית לדליה .`;
   return [
     `היי ${firstName(d.payer?.name)}, 🙋‍♀️`,
       '🌈תזכורת תשלום לחוג אומנות, סטודיו ידיים:',
         '',
     ...lines,
-    `*סה״כ לתשלום: ${fmtMoney(d.total)}*`,
-    `${pay} תודה!`,
+    `*סה״כ לתשלום: ${fmtMoney(d.total)}*`, 
+     
+    `${pay} \n תודה🙂`,
   ].join('\n');
 }
 
