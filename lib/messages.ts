@@ -1,5 +1,6 @@
 import type { FamilyDebt } from './billing.ts';
 import { fmtMoney } from './billing.ts';
+import { monthName } from './dates.ts';
 
 export function firstName(full: string | null | undefined): string {
   return (full || '').trim().split(/\s+/)[0] || '';
@@ -7,7 +8,9 @@ export function firstName(full: string | null | undefined): string {
 
 /** One personal message per family, listing every open charge and the total. */
 export function reminderMessage(d: FamilyDebt, signature = process.env.STUDIO_SIGNATURE || 'גליה', studioPhone = process.env.STUDIO_PHONE || ''): string {
-  const lines = d.charges.map((c) => `• ${c.childFirst} – ${c.label}: ${fmtMoney(c.due)}`);
+  // "עמית - אוקטובר 330₪" for a class month, "עמית - קייטנת חנוכה 450₪" for a camp
+  const amount = (n: number) => `${fmtMoney(n).replace('₪', '')}₪`;
+  const lines = d.charges.map((c) => `• ${c.childFirst} - ${c.isClass ? monthName(c.month) : c.shortLabel} ${amount(c.due)}`);
   const pay =`אפשר לשלם בפייבוקס או בהעברה בנקאית לדליה .`;
   return [
     `היי ${firstName(d.payer?.name)}, 🙋‍♀️`,
