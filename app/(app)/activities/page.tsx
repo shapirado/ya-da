@@ -3,7 +3,7 @@ import { loadModel } from '@/lib/data';
 import { allCharges, fmtMoney, groupLabel, isClass } from '@/lib/billing';
 import { addMonths, fmtDate, monthLabel, monthStart, seasonFor } from '@/lib/dates';
 import { changeGroupPrice, createClassGroup, generateMonths, saveCamp, saveSettings, updateClassGroup } from '@/app/actions';
-import { Dot, PageHeader, SWATCHES } from '@/components/ui';
+import { Dot, PageHeader, PlusIcon, SWATCHES, iconBtn } from '@/components/ui';
 import { Flash } from '@/components/Flash';
 import { SubmitButton } from '@/components/SubmitButton';
 import { NavSelect } from '@/components/NavSelect';
@@ -33,15 +33,18 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
 
   return (
     <>
-      <PageHeader title="חוגים וקייטנות" sub="כל חוג מחולק לחודשים — רשומה לכל חודש. קייטנה היא רשומה אחת.">
+      <PageHeader title="חוגים וקייטנות" sub={<><span className="hidden md:inline">כל חוג מחולק לחודשים — רשומה לכל חודש. קייטנה היא רשומה אחת.</span><span className="md:hidden">רשומה לכל חודש בחוג · רשומה אחת לקייטנה</span></>}
+        mobile={<Link href="/activities?g=new" aria-label="קבוצת חוג חדשה" title="אפתח קבוצת חוג חדשה" className={iconBtn}><PlusIcon /></Link>}>
         <Link href="/activities?g=new" className="btn-primary no-underline" title="אפתח קבוצת חוג חדשה ואצור לה את חודשי השנה">+ קבוצת חוג</Link>
         <Link href="/activities?camp=new#camp-form" className="btn-secondary no-underline" title="אפתח קייטנה חדשה כרשומה אחת">+ קייטנה</Link>
       </PageHeader>
       <Flash ok={sp.ok} err={sp.err} />
 
-      <div className="flex flex-wrap gap-4 items-start">
-        <section className="flex-[999_1_520px] min-w-0 flex flex-col gap-3.5">
-          <form action={saveSettings} className="card !py-4 flex flex-wrap items-end gap-3.5">
+      {/* phones: one column — the section and aside dissolve (contents) and their blocks are ordered:
+          group tabs, months, the selected group's forms, camps, general prices last */}
+      <div className="flex flex-col md:flex-row md:flex-wrap gap-3 md:gap-4 md:items-start">
+        <section className="contents md:flex flex-[999_1_520px] min-w-0 flex-col gap-3.5">
+          <form action={saveSettings} className="card !py-4 flex flex-wrap items-end gap-3.5 max-md:order-7">
             <div className="flex-[1_1_200px] flex flex-col gap-1">
               <h2 className="m-0 text-[17px]">מחירים כלליים</h2>
               <span className="text-[13px] text-muted">אשתמש בהם כשאני יוצרת חודשים חדשים ובמחיר מוזל לאחים</span>
@@ -51,29 +54,49 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
             <SubmitButton className="btn-secondary" pending="שומרת…" title="חודשים שכבר נוצרו לא ישתנו">שמירה</SubmitButton>
           </form>
 
-          <h2 className="mx-1 mt-1 mb-0 text-[17px] text-muted font-medium">קבוצות חוג</h2>
-          <div className="grid gap-2.5 grid-cols-[repeat(auto-fit,minmax(190px,1fr))]">
+          <h2 className="hidden md:block mx-1 mt-1 mb-0 text-[17px] text-muted font-medium">קבוצות חוג</h2>
+          <div className="max-md:order-1 max-md:flex max-md:overflow-x-auto max-md:-mx-4 max-md:px-4 max-md:pb-0.5 md:grid gap-2 md:gap-2.5 md:grid-cols-[repeat(auto-fit,minmax(190px,1fr))]">
             {groups.map((g) => {
               const on = g.id === sel?.id;
               return (
                 <Link key={g.id} href={`/activities?g=${g.id}`} aria-current={on ? 'true' : undefined} title={`אציג את החודשים של ${groupLabel(g)}`}
-                  className={`no-underline text-ink rounded-[14px] p-3.5 flex flex-col gap-2 ${on ? 'bg-[#F7F8FF] border-2 border-accent' : 'bg-white border border-line'}`}>
-                  <span className="flex items-center gap-2.5"><Dot color={g.color || '#5C5A66'} size={14} square /><b className="text-[17px]">{groupLabel(g)}</b></span>
-                  <span className="text-[13px] text-muted">{kidsIn(g.id)} ילדים החודש</span>
+                  className={`no-underline text-ink rounded-[14px] p-2.5 md:p-3.5 flex flex-col gap-1 md:gap-2 max-md:flex-none max-md:min-w-[120px] ${on ? 'bg-[#F7F8FF] border-2 border-accent' : 'bg-white border border-line'}`}>
+                  <span className="flex items-center gap-1.5 md:gap-2.5"><Dot color={g.color || '#5C5A66'} size={12} square /><b className="text-sm md:text-[17px] whitespace-nowrap">{groupLabel(g)}</b></span>
+                  <span className="text-xs md:text-[13px] text-muted whitespace-nowrap">{kidsIn(g.id)} ילדים החודש</span>
                 </Link>
               );
             })}
           </div>
 
           {sel && (
-            <section className="card !py-4 flex flex-col gap-2.5" aria-labelledby="months-h">
+            <section className="card !py-4 flex flex-col gap-2.5 max-md:order-3" aria-labelledby="months-h">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 id="months-h" className="m-0 text-lg">החודשים של {groupLabel(sel)}</h2>
-                <Link href={`/activities?g=${sel.id}${showFuture ? '' : '&future=1'}`} className="chip border border-line-strong bg-white text-accent-dark no-underline min-h-10" title="אציג או אסתיר את החודשים שעוד לא התחילו">
-                  {showFuture ? 'הסתרת חודשים עתידיים' : `הצגת ${months.length - visibleMonths.length} חודשים עתידיים`}
+                <h2 id="months-h" className="m-0 text-base md:text-lg">החודשים של {groupLabel(sel)}</h2>
+                <Link href={`/activities?g=${sel.id}${showFuture ? '' : '&future=1'}`} className="chip border border-line-strong bg-white text-accent-dark no-underline min-h-9 md:min-h-10 max-md:!text-xs" title="אציג או אסתיר את החודשים שעוד לא התחילו">
+                  <span className="hidden md:inline">{showFuture ? 'הסתרת חודשים עתידיים' : `הצגת ${months.length - visibleMonths.length} חודשים עתידיים`}</span>
+                  <span className="md:hidden">{showFuture ? 'הסתרת עתידיים' : `+${months.length - visibleMonths.length} עתידיים`}</span>
                 </Link>
               </div>
-              <div className="overflow-x-auto">
+              <ul className="md:hidden list-none m-0 p-0 flex flex-col">
+                {visibleMonths.map((a) => {
+                  const rows = charges.filter((c) => c.activityId === a.id);
+                  const cur = a.start_date === thisMonth;
+                  const past = (a.end_date || '') < m.today;
+                  const started = !!a.start_date && a.start_date <= m.today;
+                  return (
+                    <li key={a.id} className="flex items-center gap-2.5 min-h-[52px] border-b border-[#EEEFF3]">
+                      <span className="flex-1 flex flex-col"><b className="text-[15px]">{monthLabel(a.start_date)}</b><span className="text-xs text-muted">{fmtDate(a.start_date)}–{fmtDate(a.end_date)}</span></span>
+                      <span className="flex flex-col items-end text-xs text-muted">
+                        <b className="text-sm text-ink">{a.default_price != null ? fmtMoney(a.default_price) : '—'}</b>
+                        <span>{started ? `${rows.filter((r) => r.status === 'paid').length}/${rows.length} שילמו` : `${rows.length} רשומים`}</span>
+                      </span>
+                      <span className={`chip !text-[11px] !px-2 !py-0.5 min-w-11 justify-center ${cur ? 'bg-accent-soft text-accent-dark' : 'bg-page text-muted'}`}>{cur ? 'החודש' : past ? 'הסתיים' : 'עתידי'}</span>
+                    </li>
+                  );
+                })}
+                {!visibleMonths.length && <li className="text-muted text-sm py-2">אין חודשים שהתחילו</li>}
+              </ul>
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full min-w-[600px] border-collapse text-[15px]">
                   <thead><tr><th className="th">חודש</th><th className="th">תאריכים</th><th className="th">מחיר</th><th className="th">רשומים</th><th className="th">שילמו</th><th className="th">מצב</th></tr></thead>
                   <tbody>
@@ -99,8 +122,9 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
             </section>
           )}
 
-          <div className="mx-1 mt-2 mb-0 flex flex-wrap items-center justify-between gap-2.5">
-            <h2 className="m-0 text-[17px] text-muted font-medium">קייטנות · רשומה אחת לכל קייטנה</h2>
+          <div className="mx-1 mt-2 mb-0 flex flex-wrap items-center justify-between gap-2.5 max-md:order-5 max-md:mt-1">
+            <h2 className="m-0 text-base md:text-[17px] max-md:text-ink md:text-muted font-medium"><span className="hidden md:inline">קייטנות · רשומה אחת לכל קייטנה</span><span className="md:hidden font-semibold">קייטנות</span></h2>
+            <Link href="/activities?camp=new#camp-form" className="md:hidden chip border border-line-strong bg-white text-accent-dark no-underline min-h-10" title="אפתח קייטנה חדשה כרשומה אחת">+ קייטנה</Link>
             {camps.length > 1 && (
               <NavSelect
                 label="בחירת קייטנה"
@@ -110,7 +134,7 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
               />
             )}
           </div>
-          <div className="grid gap-2.5 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+          <div className="grid gap-2.5 grid-cols-[repeat(auto-fit,minmax(220px,1fr))] max-md:order-6">
             {camps.map((c) => {
               const rows = charges.filter((x) => x.activityId === c.id);
               const over = (c.end_date || '9999') < m.today;
@@ -129,7 +153,7 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
           </div>
         </section>
 
-        <aside className="flex-[1_1_360px] min-w-0 flex flex-col gap-4">
+        <aside className="contents md:flex flex-[1_1_360px] min-w-0 flex-col gap-4 [&>*]:max-md:order-4">
           {editCamp ? (
             <form id="camp-form" action={saveCamp} className="card flex flex-col gap-3">
               <h2 className="m-0 text-xl">{editCamp === 'new' ? 'קייטנה חדשה' : editCamp.name}</h2>
@@ -161,7 +185,7 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
             </form>
           ) : sel ? (
             <div className="card flex flex-col gap-4">
-              <h2 className="m-0 text-xl flex items-center gap-2.5"><Dot color={sel.color || '#5C5A66'} size={16} square />{groupLabel(sel)}</h2>
+              <h2 className="m-0 text-xl flex items-center gap-2.5 max-md:order-first max-md:text-base"><Dot color={sel.color || '#5C5A66'} size={16} square />{groupLabel(sel)}</h2>
               <form action={updateClassGroup} className="flex flex-col gap-2.5">
                 <input type="hidden" name="id" value={sel.id} />
                 <div className="grid grid-cols-2 gap-2.5">
@@ -173,7 +197,7 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
               </form>
 
               {futureMonths.length > 0 && (
-                <form action={changeGroupPrice} className="flex flex-col gap-2.5 pt-4 border-t border-line">
+                <form action={changeGroupPrice} className="flex flex-col gap-2.5 pt-4 border-t border-line max-md:order-first max-md:pt-0 max-md:border-t-0">
                   <h3 className="m-0 text-[13px] font-semibold text-muted">שינוי מחיר באמצע השנה</h3>
                   <input type="hidden" name="id" value={sel.id} />
                   <div className="grid grid-cols-2 gap-2.5">

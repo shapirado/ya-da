@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { SignOutButton } from '@clerk/nextjs';
 import { Sidebar } from '@/components/Sidebar';
+import { BottomNav } from '@/components/BottomNav';
 import { morningConfigured } from '@/lib/morning';
 import { checkAccess } from '@/lib/auth';
 
@@ -24,9 +25,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     );
   }
   return (
-    <div className="min-h-screen p-4 flex flex-wrap gap-4 items-start">
+    // phones: no sidebar, a tab bar at the bottom (content keeps clear of it); md and up: as before
+    <div className="min-h-screen px-4 pt-4 pb-28 md:p-4 flex flex-wrap gap-4 items-start">
       <Sidebar morningOk={morningConfigured()} email={access.email} />
-      <main className="flex-[999_1_560px] min-w-0 flex flex-col gap-4">{children}</main>
+      <main className="flex-[999_1_560px] min-w-0 flex flex-col gap-3.5 md:gap-4">{children}</main>
+      <BottomNav />
     </div>
   );
 }

@@ -10,6 +10,19 @@ import { MethodIcon, METHOD_LABEL } from './ui';
 type Phase = 'idle' | 'scanning' | 'review' | 'error';
 
 const money = (n: number) => '₪' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
+/** True under 768px — the phone layout. False until mounted (the scanner only shows after a scan, so that's fine). */
+function useIsMobile(): boolean {
+  const [m, setM] = useState(false);
+  useEffect(() => {
+    const q = window.matchMedia('(max-width: 767px)');
+    const on = () => setM(q.matches);
+    on();
+    q.addEventListener('change', on);
+    return () => q.removeEventListener('change', on);
+  }, []);
+  return m;
+}
+
 const pretty = (raw: string) => { try { return JSON.stringify(JSON.parse(raw), null, 2); } catch { return raw || '(ריק)'; } };
 const ddmmyyyy = (iso: string | null) => (iso ? iso.split('-').reverse().join('/') : '');
 const REASON: Record<string, string> = {
@@ -369,6 +382,9 @@ function PaymentCard({ item, preview, debug, allPayers, enroll, labels }: { item
   const [receipt, setReceipt] = useState<{ number: string | null; url: string | null } | null>(null);
 
   const amt = Number(amount) || 0;
+  const mobile = useIsMobile();
+  // phones: the fields read from the screenshot stay folded behind "תיקון הפרטים"
+  const [fixOpen, setFixOpen] = useState(false);
   const alerts = mode === 'existing' && option ? option.alerts : item.alerts;
   const newDepOn = !!camp && amt > 0 && amt < camp.price - 0.005;
   const assigned = Object.values(alloc).reduce((t, v) => t + (Number(v) || 0), 0);
@@ -483,11 +499,65 @@ function PaymentCard({ item, preview, debug, allPayers, enroll, labels }: { item
     );
   }
 
+  const alertBox = (
+    <>
+        {alerts.length > 0 && (
+          <div role="alert" className="flex flex-col gap-2 p-3 rounded-[14px] bg-warn-soft text-sm">
+            <b className="text-warn">נראה כמו תשלום כפול</b>
+            {alerts.map((a, i) => (
+              <span key={i}>{a.text}{a.url && <> · <a href={a.url} target="_blank" rel="noopener">פתיחת הקבלה</a></>}</span>
+            ))}
+            <label className="flex items-center gap-2.5 min-h-11 font-medium">
+              <input type="checkbox" checked={notDup} onChange={(e) => setNotDup(e.target.checked)} className="w-5 h-5 accent-accent flex-none" />
+              זה לא כפל — להמשיך
+            </label>
+          </div>
+        )}
+    </>
+  );
+  const actionBtn = (
+        <button type="button" className="btn-primary min-h-[52px]"
+          disabled={state === 'saving' || (alerts.length > 0 && !notDup) || (mode === 'new'
+            ? created ? !amt || (newDepOn && newDep.kind === 'deposit' && !newDep.item) : !payerName.trim() || !ncFirst.trim() || !activity
+            : !amt || !option || !assigned || assigned > amt + 0.005
+              || option.charges.some((c) => depOn(c, alloc[c.linkId]) && depOf(c.linkId).kind === 'deposit' && !depOf(c.linkId).item))}
+          onClick={submit}
+          title={mode !== 'new' ? 'אפיק קבלה ב-Morning ואסמן את החיובים כשולמו'
+            : created ? 'אפיק קבלה ב-Morning על התשלום הזה ואעדכן את החיובים'
+            : 'אשמור את הלקוח/ה, הילד/ה והחיובים — בלי להפיק קבלה עדיין'}>
+          {state === 'saving'
+            ? <><span className="spinner" />{mode !== 'new' || created ? 'מפיקה קבלה…' : 'שומרת לקוח/ה וילד/ה…'}</>
+            : mode !== 'new' ? 'הפקת קבלה ב-Morning' : created ? 'יצירת קבלה במורנינג' : mcSel ? 'שמירת לקוח/ה ורישום הילד/ה' : 'פתיחת לקוח/ה ורישום הילד/ה'}
+        </button>
+  );
+  const statusLines = (
+    <>
+        {state === 'saving' && <div role="status" className="text-sm text-accent-dark">{mode !== 'new' || created ? 'מפיקה קבלה ומעדכנת את החיובים…' : 'שומרת את הלקוח/ה, הילד/ה והחיובים…'}</div>}
+        {state === 'error' && <p role="alert" className="m-0 text-sm text-bad">לא הצלחתי: {msg}</p>}
+    </>
+  );
+  const payerShown = mode === 'new' ? clientName || '—' : option?.name || '—';
+
   return (
-    <div className="flex flex-wrap gap-4 items-start">
+    <div className="flex flex-wrap gap-3 md:gap-4 items-start">
       <section className="card flex-[1_1_280px] min-w-0 flex flex-col gap-3">
-        <h2 className="m-0 text-lg">1 · מה זיהיתי (אפשר לתקן)</h2>
-        {preview && <img src={preview} alt="הצילום שהעלית" className="max-h-72 self-center rounded-xl border border-line object-contain" />}
+        <h2 className="hidden md:block m-0 text-lg">1 · מה זיהיתי (אפשר לתקן)</h2>
+        {/* phones: a compact summary; the fields open with "תיקון הפרטים" */}
+        <div className="md:hidden flex items-center gap-3">
+          {preview && <img src={preview} alt="הצילום שהעלית" className="w-16 h-[100px] rounded-[10px] border border-line object-cover object-top flex-none" />}
+          <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+            <h2 className="m-0 text-[15px]">קראתי את הצילום</h2>
+            <span className="text-[22px] font-bold">{money(amt)}</span>
+            <span className="text-[13px] text-muted">{[rawName, METHOD_LABEL[method], ddmmyyyy(date)].filter(Boolean).join(' · ')}</span>
+            {note && <span className="text-[13px] text-muted">״{note}״</span>}
+          </div>
+        </div>
+        <button type="button" onClick={() => setFixOpen((v) => !v)} aria-expanded={fixOpen}
+          className="md:hidden self-stretch text-right min-h-10 border-0 border-t border-line bg-transparent text-accent-dark text-sm cursor-pointer px-0">
+          {fixOpen ? 'סגירת התיקון' : 'תיקון הפרטים'}
+        </button>
+        <div className={`${fixOpen ? 'flex' : 'hidden'} md:flex flex-col gap-3`}>
+        {preview && <img src={preview} alt="הצילום שהעלית" className="hidden md:block max-h-72 self-center rounded-xl border border-line object-contain" />}
         {debug && (
           <details className="text-xs">
             <summary className="cursor-pointer min-h-9 flex items-center text-muted">debug · התשובה הגולמית של Gemini ({debug.model})</summary>
@@ -509,11 +579,18 @@ function PaymentCard({ item, preview, debug, allPayers, enroll, labels }: { item
             ))}
           </div>
         </div>
+        </div>
       </section>
 
       <section className="card flex-[1_1_320px] min-w-0 flex flex-col gap-3">
+        {mobile && mode === 'new' && (
+          <div className="flex flex-col gap-1.5">
+            <div aria-hidden className="flex gap-1.5"><span className="flex-1 h-1 rounded-sm bg-accent" /><span className={`flex-1 h-1 rounded-sm ${created ? 'bg-accent' : 'bg-line-strong'}`} /></div>
+            <span className="text-xs text-muted">{created ? 'שלב 2 מתוך 2 · הפקת קבלה' : 'שלב 1 מתוך 2 · לקוח/ה, ילד/ה ורישום'}</span>
+          </div>
+        )}
         <div className="flex justify-between items-center gap-2">
-          <h2 className="m-0 text-lg">2 · עבור מי התשלום?</h2>
+          <h2 className="m-0 text-[15px] md:text-lg"><span className="hidden md:inline">2 · </span>עבור מי התשלום?</h2>
           {mode === 'existing' && option && option.score > 0 && <span className={`chip ${option.score >= 80 ? 'bg-ok-soft text-ok' : 'bg-warn-soft text-warn'}`}>התאמה {option.score}%</span>}
         </div>
         <div role="radiogroup" aria-label="סוג משלם/ת" className="flex gap-1.5">
@@ -642,11 +719,28 @@ function PaymentCard({ item, preview, debug, allPayers, enroll, labels }: { item
         {option && <FocusPanel key={`enroll-${option.payerId}-${option.focus.linkId ?? 'none'}-${option.focus.activity}-${option.focus.childName}`} part="enroll" option={option} enroll={enroll} onEnrolled={afterEnroll} onPick={pickChild} />}
         </>
         )}
+        {mobile && mode === 'new' && newDepOn && camp && <DepositChoice key={camp.id} activityId={camp.id} value={newDep} onChange={setNewDep} lockKind={!!created} />}
       </section>
 
-      <section className="card flex-[1_1_280px] min-w-0 flex flex-col gap-3">
+      {/* phones: duplicate warnings, then a bar that stays above the tab bar with the total and the button */}
+      {mobile && (
+        <>
+          {alerts.length > 0 && <div className="basis-full">{alertBox}</div>}
+          <section className="basis-full sticky bottom-[84px] z-10 bg-white border border-line rounded-2xl p-3 flex flex-col gap-2 shadow-[0_-4px_16px_rgba(23,22,28,0.08)]">
+            <div className="flex justify-between gap-2 text-[13px] text-muted">
+              <span>{mode === 'new' ? money(amt) : `שויך ${money(assigned)} מתוך ${money(amt)}`}</span>
+              <span className="truncate">קבלה ל: {payerShown}</span>
+            </div>
+            {actionBtn}
+            {mode === 'new' && !created && <p className="m-0 text-xs text-muted text-center">הקבלה תופק רק אחרי לחיצה נוספת</p>}
+            {statusLines}
+          </section>
+        </>
+      )}
+
+      <section className={`card flex-[1_1_280px] min-w-0 flex-col gap-3 ${mobile ? 'hidden' : 'flex'}`}>
         <h2 className="m-0 text-lg">3 · קבלה ב-Morning</h2>
-        {mode === 'new' && newDepOn && camp && <DepositChoice key={camp.id} activityId={camp.id} value={newDep} onChange={setNewDep} lockKind={!!created} />}
+        {!mobile && mode === 'new' && newDepOn && camp && <DepositChoice key={camp.id} activityId={camp.id} value={newDep} onChange={setNewDep} lockKind={!!created} />}
         <div className="border border-line rounded-[14px] p-4 flex flex-col gap-2 bg-[#FBFBFC] text-sm">
           <div className="flex justify-between"><span className="text-muted">לקוח</span><span>{mode === 'new' ? `${clientName || '—'}${mcSel ? '' : created ? '' : ' · חדש/ה'}` : option?.name || '—'}</span></div>
           {mode === 'new' ? (
@@ -660,34 +754,10 @@ function PaymentCard({ item, preview, debug, allPayers, enroll, labels }: { item
           <div className="flex justify-between text-base font-bold"><span>סה״כ</span><span>{money(amt)}</span></div>
           <div className="flex justify-between items-center text-muted"><span>אמצעי תשלום</span><span className="inline-flex items-center gap-1.5"><MethodIcon method={method} size={18} />{METHOD_LABEL[method]} · {ddmmyyyy(date)}</span></div>
         </div>
-        {alerts.length > 0 && (
-          <div role="alert" className="flex flex-col gap-2 p-3 rounded-[14px] bg-warn-soft text-sm">
-            <b className="text-warn">נראה כמו תשלום כפול</b>
-            {alerts.map((a, i) => (
-              <span key={i}>{a.text}{a.url && <> · <a href={a.url} target="_blank" rel="noopener">פתיחת הקבלה</a></>}</span>
-            ))}
-            <label className="flex items-center gap-2.5 min-h-11 font-medium">
-              <input type="checkbox" checked={notDup} onChange={(e) => setNotDup(e.target.checked)} className="w-5 h-5 accent-accent flex-none" />
-              זה לא כפל — להמשיך
-            </label>
-          </div>
-        )}
-        <button type="button" className="btn-primary min-h-[52px]"
-          disabled={state === 'saving' || (alerts.length > 0 && !notDup) || (mode === 'new'
-            ? created ? !amt || (newDepOn && newDep.kind === 'deposit' && !newDep.item) : !payerName.trim() || !ncFirst.trim() || !activity
-            : !amt || !option || !assigned || assigned > amt + 0.005
-              || option.charges.some((c) => depOn(c, alloc[c.linkId]) && depOf(c.linkId).kind === 'deposit' && !depOf(c.linkId).item))}
-          onClick={submit}
-          title={mode !== 'new' ? 'אפיק קבלה ב-Morning ואסמן את החיובים כשולמו'
-            : created ? 'אפיק קבלה ב-Morning על התשלום הזה ואעדכן את החיובים'
-            : 'אשמור את הלקוח/ה, הילד/ה והחיובים — בלי להפיק קבלה עדיין'}>
-          {state === 'saving'
-            ? <><span className="spinner" />{mode !== 'new' || created ? 'מפיקה קבלה…' : 'שומרת לקוח/ה וילד/ה…'}</>
-            : mode !== 'new' ? 'הפקת קבלה ב-Morning' : created ? 'יצירת קבלה במורנינג' : mcSel ? 'שמירת לקוח/ה ורישום הילד/ה' : 'פתיחת לקוח/ה ורישום הילד/ה'}
-        </button>
+        {alertBox}
+        {actionBtn}
         {mode === 'new' && !created && <p className="m-0 text-xs text-muted">שלב 1 מתוך 2 — הקבלה תופק רק אחרי לחיצה נוספת</p>}
-        {state === 'saving' && <div role="status" className="text-sm text-accent-dark">{mode !== 'new' || created ? 'מפיקה קבלה ומעדכנת את החיובים…' : 'שומרת את הלקוח/ה, הילד/ה והחיובים…'}</div>}
-        {state === 'error' && <p role="alert" className="m-0 text-sm text-bad">לא הצלחתי: {msg}</p>}
+        {statusLines}
       </section>
     </div>
   );

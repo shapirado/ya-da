@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { loadModel, loadRecentPayments } from '@/lib/data';
 import { activityLabel, childName, fmtMoney, maps } from '@/lib/billing';
 import { fmtDate, fmtDateTime } from '@/lib/dates';
-import { Method, Notice, PageHeader } from '@/components/ui';
+import { Method, MethodIcon, Notice, PageHeader } from '@/components/ui';
 import { PaymentScanner } from '@/components/PaymentScanner';
 import { fetchDocument, morningConfigured } from '@/lib/morning';
 
@@ -16,8 +16,8 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <PageHeader title="תשלומים וקבלות" sub="קריאת צילומי תשלום והקבלות שהופקו ב-Morning" />
-      <div role="tablist" aria-label="תצוגה" className="flex gap-1.5">
+      <PageHeader title="תשלומים וקבלות" sub={<span className="hidden md:inline">קריאת צילומי תשלום והקבלות שהופקו ב-Morning</span>} />
+      <div role="tablist" aria-label="תצוגה" className="flex gap-1.5 [&>*]:max-md:flex-1 [&>*]:max-md:justify-center [&>*]:max-md:min-h-10">
         <Tab href="/payments" on={!receiptsTab}>קריאת צילום</Tab>
         <Tab href="/payments?tab=receipts" on={receiptsTab}>קבלות Morning</Tab>
       </div>
@@ -29,8 +29,21 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
           <PaymentScanner />
 
           <section aria-labelledby="log-h" className="card flex flex-col gap-3">
-            <h2 id="log-h" className="m-0 text-[19px]">קבלות שהפקתי</h2>
-            <div className="overflow-x-auto">
+            <h2 id="log-h" className="m-0 text-[17px] md:text-[19px]">קבלות שהפקתי</h2>
+            <ul className="md:hidden list-none m-0 p-0 flex flex-col">
+              {recent.map((r) => (
+                <li key={r.id} className="flex items-center gap-2.5 py-2.5 border-b border-[#EEEFF3]">
+                  <MethodIcon method={r.method} size={28} />
+                  <span className="flex-1 min-w-0 flex flex-col">
+                    <span className="font-medium text-sm">{(r.payer_id && payers.get(r.payer_id)) || r.raw_name || '—'}</span>
+                    <span className="text-xs text-muted">{fmtDate(r.paid_at)}{r.morning_document_number ? <> · {r.morning_document_url ? <a href={r.morning_document_url} target="_blank" rel="noopener">קבלה {r.morning_document_number}</a> : `קבלה ${r.morning_document_number}`}</> : ''}</span>
+                  </span>
+                  <b className="text-sm">{fmtMoney(r.amount)}</b>
+                </li>
+              ))}
+              {!recent.length && <li className="text-muted text-sm py-2">עוד לא הפקתי קבלות</li>}
+            </ul>
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full min-w-[720px] border-collapse text-[15px]">
                 <thead><tr><th className="th">תאריך תשלום</th><th className="th">משלם/ת</th><th className="th">שם בצילום</th><th className="th">אמצעי</th><th className="th">סכום</th><th className="th">קבלה</th><th className="th">נקלט</th></tr></thead>
                 <tbody>
@@ -85,13 +98,27 @@ async function MorningReceipts() {
   const missing = sorted.filter((d) => !d.ok);
 
   return (
-    <section aria-labelledby="morning-h" className="card flex flex-col gap-3">
+    <section aria-labelledby="morning-h" className="card flex flex-col gap-3 max-md:!bg-transparent max-md:!border-0 max-md:!p-0">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="morning-h" className="m-0 text-[19px]">קבלות Morning</h2>
         <span className="text-sm text-muted">{ids.length} קבלות מקושרות לפעילויות</span>
       </div>
       {missing.length > 0 && <Notice tone="warn">{missing.length} קבלות לא נמצאו ב-Morning (ייתכן שנמחקו או שהמזהה שגוי)</Notice>}
-      <div className="overflow-x-auto">
+      <div className="md:hidden flex flex-col gap-2">
+        {sorted.filter((d) => d.ok).map((d) => {
+          const body = (
+            <>
+              <span className="flex justify-between gap-2"><b className="text-[15px]">קבלה {d.number || '—'}</b><b className="text-[15px]">{d.amount != null ? fmtMoney(d.amount) : '—'}</b></span>
+              <span className="text-xs text-muted">{d.date ? fmtDate(d.date.slice(0, 10)) : '—'} · {d.clientName || '—'}</span>
+              {(refs.get(d.id) || []).map((t, i) => <span key={i} className="text-xs text-[#3A3842]">{t}</span>)}
+            </>
+          );
+          const cls = 'bg-white border border-line rounded-[14px] px-3.5 py-3 flex flex-col gap-1 text-ink no-underline';
+          return d.url ? <a key={d.id} href={d.url} target="_blank" rel="noopener" className={cls}>{body}</a> : <div key={d.id} className={cls}>{body}</div>;
+        })}
+        {!ids.length && <p className="text-muted text-sm m-0">אין קבלות מקושרות — המזהים נשמרים על הפעילות של כל ילד/ה</p>}
+      </div>
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full min-w-[760px] border-collapse text-[15px]">
           <thead><tr><th className="th">קבלה</th><th className="th">תאריך</th><th className="th">לקוח/ה ב-Morning</th><th className="th">סכום</th><th className="th">עבור</th></tr></thead>
           <tbody>

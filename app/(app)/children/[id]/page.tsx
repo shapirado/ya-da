@@ -5,7 +5,7 @@ import { allCharges, childName, fmtMoney, groupLabel, maps, type Charge } from '
 import { monthLabel, monthStart } from '@/lib/dates';
 import { enrollChild, markCharge, removeCharge, setChargePrice, stopParticipation, updateChild } from '@/app/actions';
 import { EnrollFields } from '@/components/EnrollFields';
-import { Dot, GenderIcon, PageHeader, StatusChip } from '@/components/ui';
+import { BackIcon, Dot, GenderIcon, PageHeader, StatusChip } from '@/components/ui';
 import { Flash } from '@/components/Flash';
 import { SubmitButton } from '@/components/SubmitButton';
 
@@ -30,7 +30,8 @@ export default async function ChildPage({ params, searchParams }: { params: Prom
 
   return (
     <>
-      <PageHeader title={childName(child)} sub={<span className="inline-flex items-center gap-2"><GenderIcon gender={child.gender} size={24} />{mp.payers.get(child.morning_customer_id || '')?.name || 'ללא משלם/ת'}</span>}>
+      <PageHeader title={childName(child)} sub={<span className="inline-flex items-center gap-2"><GenderIcon gender={child.gender} size={24} />{mp.payers.get(child.morning_customer_id || '')?.name || 'ללא משלם/ת'}</span>}
+        lead={<Link href="/children" aria-label="חזרה לרשימת הילדים" className="w-11 h-11 rounded-xl flex items-center justify-center text-ink"><BackIcon /></Link>}>
         <Link href="/children" className="btn-secondary no-underline">חזרה לרשימה</Link>
       </PageHeader>
       <Flash ok={sp.ok} err={sp.err} />

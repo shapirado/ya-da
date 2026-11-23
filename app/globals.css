@@ -24,7 +24,7 @@
 html, body { background: var(--color-page); color: var(--color-ink); }
 body { font-variant-numeric: tabular-nums; }
 
-@utility card { @apply bg-white border border-line rounded-[18px] p-5; }
+@utility card { @apply bg-white border border-line rounded-2xl md:rounded-[18px] p-4 md:p-5; }
 @utility btn { @apply inline-flex items-center justify-center gap-2 min-h-11 px-4 rounded-xl font-semibold text-[15px] cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
 @utility btn-primary { @apply btn bg-accent text-white hover:bg-accent-dark; }
 @utility btn-secondary { @apply btn bg-white text-ink border border-line-strong hover:bg-page font-medium; }

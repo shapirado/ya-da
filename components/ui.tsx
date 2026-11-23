@@ -4,16 +4,32 @@ export function Dot({ color, size = 10, square = false }: { color: string; size?
   return <span aria-hidden className="inline-block flex-none" style={{ width: size, height: size, borderRadius: square ? 3 : size, background: color }} />;
 }
 
-export function PageHeader({ title, sub, children }: { title: string; sub?: React.ReactNode; children?: React.ReactNode }) {
+/**
+ * Page title. `children` are the desktop actions; on phones they hide and `mobile` (small icon
+ * buttons) shows instead, and `lead` (a back link or a logo) sits before the title.
+ */
+export function PageHeader({ title, sub, children, mobile, lead }: { title: string; sub?: React.ReactNode; children?: React.ReactNode; mobile?: React.ReactNode; lead?: React.ReactNode }) {
   return (
-    <header className="flex flex-wrap items-center justify-between gap-3 px-1 py-2">
-      <div className="flex flex-col gap-1">
-        <h1 className="m-0 text-[30px] font-bold leading-tight">{title}</h1>
-        {sub && <span className="text-muted text-[15px]">{sub}</span>}
+    <header className="flex flex-nowrap md:flex-wrap items-center justify-between gap-3 px-1 py-1 md:py-2">
+      {lead && <span className="md:hidden flex-none flex">{lead}</span>}
+      <div className="flex-1 md:flex-none min-w-0 flex flex-col md:gap-1">
+        <h1 className="m-0 text-[22px] md:text-[30px] font-bold leading-tight">{title}</h1>
+        {sub && <span className="text-muted text-[13px] md:text-[15px]">{sub}</span>}
       </div>
-      {children && <div className="flex flex-wrap items-center gap-2.5">{children}</div>}
+      {mobile && <div className="md:hidden flex-none flex items-center gap-2">{mobile}</div>}
+      {children && <div className="hidden md:flex flex-wrap items-center gap-2.5">{children}</div>}
     </header>
   );
+}
+
+/** Square 44px icon button for PageHeader's `mobile` slot. */
+export const iconBtn = 'w-11 h-11 rounded-[14px] bg-accent text-white flex items-center justify-center flex-none no-underline border-0 cursor-pointer';
+export function PlusIcon() {
+  return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden><path d="M12 5v14M5 12h14" /></svg>;
+}
+export function BackIcon() {
+  // RTL: "back" points right
+  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M9 6l6 6-6 6" /></svg>;
 }
 
 const STATUS = {

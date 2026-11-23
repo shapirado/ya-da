@@ -4,19 +4,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { SignOutButton } from '@clerk/nextjs';
 import { MorningTest } from './MorningTest';
+import { NAV_ITEMS, isActive } from './navItems';
 
-const ITEMS = [
-  { href: '/', label: 'לוח בקרה', icon: <><rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" /><rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" /></> },
-  { href: '/children', label: 'ילדים', icon: <><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5" /><circle cx="17" cy="9" r="2.5" /><path d="M17 14c2.4 0 4 1.6 4.6 4.5" /></> },
-  { href: '/activities', label: 'חוגים וקייטנות', icon: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></> },
-  { href: '/reminders', label: 'תזכורות וואטסאפ', icon: <path d="M4 19l1.3-3.8A8 8 0 1 1 8.6 18z" /> },
-  { href: '/payments', label: 'תשלומים וקבלות', icon: <><path d="M6 3h9l4 4v14H6z" /><path d="M9 12h7M9 16h5" /></> },
-];
 
 export function Sidebar({ morningOk, email }: { morningOk: boolean; email: string }) {
   const path = usePathname();
   return (
-    <nav aria-label="ניווט ראשי" className="flex-[1_1_220px] max-w-full bg-nav text-white rounded-[20px] px-3.5 py-6 flex flex-col gap-1 self-start md:sticky md:top-4">
+    <nav aria-label="ניווט ראשי" className="hidden md:flex flex-[1_1_220px] max-w-full bg-nav text-white rounded-[20px] px-3.5 py-6 flex-col gap-1 self-start md:sticky md:top-4">
       <div className="flex items-center gap-3 px-2 pb-5">
         <img src="/logo.png" alt="לוגו סטודיו ידיים" className="w-12 h-12 rounded-[14px] object-cover flex-none" />
         <div className="flex flex-col">
@@ -25,8 +19,8 @@ export function Sidebar({ morningOk, email }: { morningOk: boolean; email: strin
         </div>
       </div>
       <div className="flex flex-row flex-wrap md:flex-col gap-1">
-        {ITEMS.map((it) => {
-          const active = it.href === '/' ? path === '/' : path.startsWith(it.href);
+        {NAV_ITEMS.map((it) => {
+          const active = isActive(it.href, path);
           return (
             <Link
               key={it.href}
