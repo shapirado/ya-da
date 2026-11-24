@@ -6,6 +6,7 @@ import { commitPayment, createCustomerFromScan, createReceiptForNewCustomer, enr
 import type { MorningClientHit, MorningItemHit } from '@/lib/morning';
 import type { PaymentMethod } from '@/lib/types';
 import { MethodIcon, METHOD_LABEL } from './ui';
+import { DateField } from './DateField';
 
 type Phase = 'idle' | 'scanning' | 'review' | 'error';
 
@@ -565,7 +566,7 @@ function PaymentCard({ item, preview, debug, allPayers, enroll, labels }: { item
           </details>
         )}
         <label className="flex items-center gap-2.5 text-sm"><span className="w-[72px] text-muted flex-none">סכום</span><input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" className="input" /></label>
-        <label className="flex items-center gap-2.5 text-sm"><span className="w-[72px] text-muted flex-none">תאריך</span><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" /></label>
+        <label className="flex items-center gap-2.5 text-sm"><span className="w-[72px] text-muted flex-none">תאריך</span><DateField value={date} onChange={setDate} allowClear={false} className="flex-1" ariaLabel="תאריך" /></label>
         <label className="flex items-center gap-2.5 text-sm"><span className="w-[72px] text-muted flex-none">שם בצילום</span><input value={rawName} onChange={(e) => setRawName(e.target.value)} className="input" /></label>
         <label className="flex items-center gap-2.5 text-sm"><span className="w-[72px] text-muted flex-none">הערה</span><input value={note} onChange={(e) => setNote(e.target.value)} className="input" /></label>
         <div role="radiogroup" aria-label="אמצעי תשלום" className="flex items-center gap-2.5 text-sm">

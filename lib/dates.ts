@@ -88,3 +88,38 @@ export function hebrewWeekday(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number);
   return HEB_DAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
 }
+
+/** Weekday index (0 = Sunday) of a class group's day — "ראשון", "יום ראשון"… — or -1 when unknown. */
+export function weekdayIndex(day: string | null | undefined): number {
+  const d = (day || '').replace(/^יום\s*/, '').trim();
+  return HEB_DAYS.indexOf(d);
+}
+
+/**
+ * Lessons a group has in the month of `joinIso`: all of them, and those on or after the join date
+ * (a lesson on the join day itself counts as remaining). One lesson per week on the group's day;
+ * holidays and closures aren't known here.
+ */
+export function lessonsLeft(day: string | null | undefined, joinIso: string): { left: number; total: number } {
+  const wd = weekdayIndex(day);
+  if (wd < 0) return { left: 0, total: 0 };
+  const [y, m, d0] = joinIso.split('-').map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  let total = 0, left = 0;
+  for (let d = 1; d <= last; d++) {
+    if (new Date(Date.UTC(y, m - 1, d)).getUTCDay() !== wd) continue;
+    total++;
+    if (d >= d0) left++;
+  }
+  return { left, total };
+}
+
+/**
+ * First-month price for a child joining mid-month: monthly price × lessons left ÷ lessons in the month,
+ * rounded to whole shekels. `null` when the day is unknown (charge the full month).
+ */
+export function joinMonthPrice(monthly: number, day: string | null | undefined, joinIso: string): { price: number; left: number; total: number } | null {
+  const { left, total } = lessonsLeft(day, joinIso);
+  if (!total) return null;
+  return { price: Math.round((monthly * left) / total), left, total };
+}

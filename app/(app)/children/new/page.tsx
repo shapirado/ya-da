@@ -10,6 +10,7 @@ const part = 'flex flex-col gap-3 max-md:bg-white max-md:border max-md:border-li
 import { Flash } from '@/components/Flash';
 import { SubmitButton } from '@/components/SubmitButton';
 import { RegistrationPaste } from '@/components/RegistrationPaste';
+import { DateField } from '@/components/DateField';
 import { morningConfigured } from '@/lib/morning';
 
 export default async function NewChild({ searchParams }: { searchParams: Promise<{ err?: string }> }) {
@@ -72,7 +73,7 @@ export default async function NewChild({ searchParams }: { searchParams: Promise
                 <option value="cash">מזומן</option><option value="credit">אשראי</option><option value="other">אחר</option>
               </select>
             </label>
-            <label className="label max-md:col-span-2">תאריך<input type="date" name="paid_date" className="input" /></label>
+            <label className="label max-md:col-span-2">תאריך<DateField name="paid_date" /></label>
           </div>
         </fieldset>
         </div>

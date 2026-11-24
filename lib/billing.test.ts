@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { allocate, effectivePrice, familyDebts, openCharges, type Model } from './billing.ts';
 import { rankPayers, normName, sameFirstName } from './matching.ts';
-import { fmtDate, monthsBetween, seasonFor, todayISO } from './dates.ts';
+import { fmtDate, joinMonthPrice, lessonsLeft, monthsBetween, seasonFor, todayISO } from './dates.ts';
 
 const model: Model = {
   today: '2026-11-13',
@@ -92,4 +92,16 @@ test('dates', () => {
   assert.equal(monthsBetween('2026-10-01', '2027-06-30').length, 9);
   assert.deepEqual(seasonFor('2027-02-10'), { start: '2026-10-01', end: '2027-06-30' });
   assert.match(todayISO(), /^\d{4}-\d{2}-\d{2}$/);
+});
+
+test('mid-month join price counts the lessons left', () => {
+  // December 2026 Sundays: 6, 13, 20, 27
+  assert.deepEqual(lessonsLeft('ראשון', '2026-12-15'), { left: 2, total: 4 });
+  assert.deepEqual(joinMonthPrice(280, 'ראשון', '2026-12-15'), { price: 140, left: 2, total: 4 });
+  // a lesson on the join day counts
+  assert.equal(lessonsLeft('יום ראשון', '2026-12-13').left, 3);
+  // rounding to whole shekels: 290 × 3 / 4 = 217.5
+  assert.equal(joinMonthPrice(290, 'ראשון', '2026-12-07')?.price, 218);
+  assert.equal(joinMonthPrice(280, null, '2026-12-15'), null);
+  assert.equal(lessonsLeft('ראשון', '2026-12-28').left, 0);
 });

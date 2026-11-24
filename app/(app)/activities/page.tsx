@@ -7,6 +7,7 @@ import { Dot, PageHeader, PlusIcon, SWATCHES, iconBtn } from '@/components/ui';
 import { Flash } from '@/components/Flash';
 import { SubmitButton } from '@/components/SubmitButton';
 import { NavSelect } from '@/components/NavSelect';
+import { DateField } from '@/components/DateField';
 
 type SP = { g?: string; future?: string; camp?: string; ok?: string; err?: string };
 
@@ -160,8 +161,8 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
               {editCamp !== 'new' && <input type="hidden" name="id" value={editCamp.id} />}
               <label className="label">שם<input name="name" required defaultValue={editCamp === 'new' ? '' : editCamp.name || ''} className="input" /></label>
               <div className="grid grid-cols-2 gap-2.5">
-                <label className="label">מתאריך<input type="date" name="start" defaultValue={editCamp === 'new' ? '' : editCamp.start_date || ''} className="input" /></label>
-                <label className="label">עד תאריך<input type="date" name="end" defaultValue={editCamp === 'new' ? '' : editCamp.end_date || ''} className="input" /></label>
+                <label className="label">מתאריך<DateField name="start" defaultValue={editCamp === 'new' ? '' : editCamp.start_date || ''} /></label>
+                <label className="label">עד תאריך<DateField name="end" defaultValue={editCamp === 'new' ? '' : editCamp.end_date || ''} /></label>
                 <label className="label">מחיר (₪)<input name="price" inputMode="decimal" defaultValue={editCamp === 'new' ? '' : editCamp.default_price ?? ''} className="input" /></label>                <label className="label">מזהה פריט ב-Morning<input name="item" dir="ltr" defaultValue={editCamp === 'new' ? '' : editCamp.morning_item_id || ''} className="input" placeholder="לא חובה" /></label>
               </div>
               <ColorPicker value={editCamp === 'new' ? '#8E5BD9' : editCamp.color || '#8E5BD9'} />
@@ -214,8 +215,8 @@ export default async function ActivitiesPage({ searchParams }: { searchParams: P
                 <input type="hidden" name="id" value={sel.id} />
                 <p className="m-0 text-sm text-muted">יש לקבוצה {months.length} חודשים. אצור רק חודשים שחסרים בטווח.</p>
                 <div className="grid grid-cols-2 gap-2.5">
-                  <label className="label">מתאריך<input type="date" name="from" defaultValue={nextSeason.start} className="input" /></label>
-                  <label className="label">עד<input type="date" name="to" defaultValue={nextSeason.end} className="input" /></label>
+                  <label className="label">מתאריך<DateField name="from" defaultValue={nextSeason.start} allowClear={false} /></label>
+                  <label className="label">עד<DateField name="to" defaultValue={nextSeason.end} allowClear={false} /></label>
                 </div>
                 <label className="label">מחיר לחודש (₪)<input name="price" inputMode="decimal" placeholder={String(m.settings.default_full_price ?? '')} className="input" /></label>
                 <SubmitButton className="btn-secondary" pending="יוצרת חודשים…" title="אצור רשומה לכל חודש שחסר">יצירת חודשים</SubmitButton>

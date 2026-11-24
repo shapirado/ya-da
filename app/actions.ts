@@ -9,7 +9,7 @@ import { allCharges, allocate, childName, familyDebts, groupLabel, isClass, open
 import { rankPayers, normName, sameFirstName, splitSender } from '@/lib/matching';
 import { createMorningClient, createReceipt, morningConfigured, searchMorningClients, searchMorningItems, testMorningConnection, type MorningClientHit, type MorningItemHit, type MorningTestResult } from '@/lib/morning';
 import { extractPaymentsDebug, extractRegistration, type ExtractedPayment, type ExtractedRegistration } from '@/lib/gemini';
-import { fmtDate, monthEnd, monthStart, monthsBetween, todayISO } from '@/lib/dates';
+import { addMonths, fmtDate, joinMonthPrice, monthEnd, monthLabel, monthStart, monthsBetween, todayISO } from '@/lib/dates';
 import type { PaymentLog, PaymentMethod } from '@/lib/types';
 
 // ---------- helpers ----------
@@ -154,17 +154,32 @@ function priceFor(mode: PriceMode, custom: number | null, discount: number | nul
   return null; // full → follow the activity's price
 }
 
-/** Creates child_activity rows: every month of the group from `from`, or the single camp row. */
-async function enrollRows(childId: string, fd: FormData, back: string) {
+/**
+ * Creates child_activity rows: every month of the group from the join date (`from`, a date), or the single
+ * camp row. The join month of a group is charged for the lessons left in it only (joinMonthPrice);
+ * a join after the month's last lesson starts from the next month.
+ */
+async function enrollRows(childId: string, fd: FormData, back: string, groupIds: string[] = fd.getAll('group').map(String)) {
   const settings = await loadSettings();
-  const from = monthStart(s(fd, 'from') || todayISO());
+  const join = s(fd, 'from') || todayISO();
+  const from = monthStart(join);
   const rows: { child_id: string; activity_id: number; price: number | null; payment_status: string; paid_amount: number }[] = [];
-  for (const groupId of fd.getAll('group').map(String)) {
+  for (const groupId of groupIds) {
     const mode = (s(fd, `mode_${groupId}`) || 'full') as PriceMode;
     const price = priceFor(mode, num(fd, `custom_${groupId}`), settings.default_discount_price);
-    const months = await must(db().from('activities').select('id').eq('class_group_id', groupId).gte('start_date', from), back) as any[];
+    const group = await must(db().from('class_groups').select('day').eq('id', groupId).maybeSingle(), back) as any;
+    const months = await must(db().from('activities').select('id,start_date,default_price').eq('class_group_id', groupId).gte('start_date', from).order('start_date', { ascending: true }), back) as any[];
     if (!months.length) fail(back, 'לקבוצה הזו אין חודשים פתוחים — צרי אותם במסך החוגים');
-    for (const m of months) rows.push({ child_id: childId, activity_id: m.id, price, payment_status: 'unpaid', paid_amount: 0 });
+    for (const m of months) {
+      let rowPrice = price;
+      if (m.start_date === from) {
+        const monthly = Number(price ?? m.default_price ?? settings.default_full_price ?? 0);
+        const j = joinMonthPrice(monthly, group?.day, join);
+        if (j && j.left === 0) continue; // no lessons left this month
+        if (j && j.left < j.total) rowPrice = j.price;
+      }
+      rows.push({ child_id: childId, activity_id: m.id, price: rowPrice, payment_status: 'unpaid', paid_amount: 0 });
+    }
   }
   for (const campId of fd.getAll('camp').map(String)) {
     const mode = (s(fd, `mode_camp_${campId}`) || 'full') as PriceMode;
@@ -300,11 +315,52 @@ export async function updateChild(fd: FormData) {
   done(back, { ok: 'שמרתי את הפרטים' });
 }
 
+/**
+ * Child page "שיבוץ לפעילויות". The child's current groups (rows this month or later) come ticked.
+ * - one current group unticked + one other group ticked = a move: the old group's rows from next month
+ *   are switched to the new group's activity for the same month (price, payments and receipts stay);
+ *   blocked when the new group lacks any of those months
+ * - a group ticked on its own = joined from the join date (first month prorated)
+ * - a current group unticked on its own does nothing — stopping is the group's own button
+ */
 export async function enrollChild(fd: FormData) {
   await requireAccess();
   const id = s(fd, 'id');
-  const n = await enrollRows(id, fd, `/children/${id}`);
-  done(`/children/${id}`, { ok: n ? `הוספתי ${n} חיובים` : 'לא היה מה להוסיף — הילד/ה כבר רשום/ה' });
+  const back = `/children/${id}`;
+  const thisMonth = monthStart(todayISO());
+  const mine = await must(db().from('child_activity').select('id,activity_id').eq('child_id', id), back) as { id: number; activity_id: number }[];
+  const acts = mine.length
+    ? await must(db().from('activities').select('id,start_date,class_group_id').in('id', mine.map((r) => r.activity_id)), back) as { id: number; start_date: string | null; class_group_id: string | null }[]
+    : [];
+  const actOf = new Map(acts.map((a) => [a.id, a]));
+  const current = new Set(mine.map((r) => actOf.get(r.activity_id)).filter((a) => a?.class_group_id && (a.start_date || '') >= thisMonth).map((a) => a!.class_group_id!));
+  const ticked = fd.getAll('group').map(String);
+  const added = ticked.filter((g) => !current.has(g));
+  const removed = [...current].filter((g) => !ticked.includes(g));
+
+  const notes: string[] = [];
+  let joinGroups = added;
+  if (removed.length && added.length) {
+    if (removed.length !== 1 || added.length !== 1) fail(back, 'אפשר להעביר מחוג אחד לחוג אחד בכל פעם');
+    const [fromGroup, toGroup] = [removed[0], added[0]];
+    const next = addMonths(thisMonth, 1);
+    const moving = mine.filter((r) => { const a = actOf.get(r.activity_id); return a?.class_group_id === fromGroup && (a.start_date || '') >= next; });
+    const target = await must(db().from('activities').select('id,start_date').eq('class_group_id', toGroup).gte('start_date', next), back) as { id: number; start_date: string }[];
+    const byMonth = new Map(target.map((a) => [monthStart(a.start_date), a.id]));
+    const missing = moving.map((r) => actOf.get(r.activity_id)!.start_date!).filter((d) => !byMonth.has(monthStart(d)));
+    if (missing.length) fail(back, `לחוג החדש אין את החודשים: ${missing.map(monthLabel).join(', ')} — צרי אותם במסך החוגים ואז נסי שוב`);
+    for (const r of moving) {
+      const to = byMonth.get(monthStart(actOf.get(r.activity_id)!.start_date!))!;
+      await must(db().from('child_activity').update({ activity_id: to }).eq('id', r.id), back);
+    }
+    notes.push(moving.length ? `העברתי ${moving.length} חודשים לחוג החדש מ${monthLabel(next)}` : 'לא היו חודשים להעביר מהחודש הבא');
+    joinGroups = [];
+  } else if (removed.length) {
+    notes.push('הסרת סימון מחוג לא מוחקת חודשים — להפסקה יש את הכפתור ״מחיקת החודשים הבאים״');
+  }
+  const n = await enrollRows(id, fd, back, joinGroups);
+  if (n) notes.unshift(`הוספתי ${n} חיובים`);
+  done(back, { ok: notes.join(' · ') || 'לא היה מה לשנות' });
 }
 
 export async function setChargePrice(fd: FormData) {
@@ -313,6 +369,23 @@ export async function setChargePrice(fd: FormData) {
   const back = `/children/${childId}`;
   await must(db().from('child_activity').update({ price: num(fd, 'price') }).eq('id', Number(s(fd, 'link'))), back);
   done(back, { ok: 'עדכנתי את המחיר' });
+}
+
+/** Child page, current group: the join month's price (typed, or recalculated from a join date). Refused once that month has any payment. */
+export async function setJoinMonthPrice(fd: FormData) {
+  await requireAccess();
+  const childId = s(fd, 'id');
+  const back = `/children/${childId}`;
+  const link = Number(s(fd, 'join_link'));
+  const price = num(fd, 'join_price');
+  if (!link || price == null || price < 0) fail(back, 'צריך מחיר לחודש ההצטרפות');
+  const row = await must(db().from('child_activity').select('payment_status,paid_amount').eq('id', link).eq('child_id', childId).maybeSingle(), back) as any;
+  if (!row) fail(back, 'לא מצאתי את החודש');
+  if (row.payment_status === 'paid' || row.payment_status === 'deposit' || Number(row.paid_amount) > 0) fail(back, 'חודש ההצטרפות כבר שולם — אי אפשר לשנות את המחיר');
+  const updated = await must(db().from('child_activity').update({ price }).eq('id', link).select('id,price'), back) as any[];
+  console.log('[join price]', { childId, link, price, before: row, updated });
+  if (!updated?.length) fail(back, `המחיר לא נשמר — אף שורה לא עודכנה (child_activity ${link})`);
+  done(back, { ok: `עדכנתי את מחיר חודש ההצטרפות ל-₪${price}` });
 }
 
 /** Stops a child's class from a month on: deletes that group's unpaid rows from then. */
@@ -733,13 +806,31 @@ export async function payerCharges(payerId: string, ctx: ScanCtx): Promise<Payer
 
 type ActRow = { id: number; default_price: number | null };
 
-/** The activity rows a registration creates charges for: every remaining month of a group, or the one camp. */
+/**
+ * The activity rows a registration creates charges for: every remaining month of a group, or the one camp.
+ * A group's current month is priced for the lessons left from today (joinMonthPrice); with none left it's skipped.
+ * Camps are never prorated.
+ */
 async function resolveActs(activity: string): Promise<{ acts: ActRow[] } | { error: string }> {
   if (activity.startsWith('g:')) {
-    const months = await db().from('activities').select('id,default_price').eq('class_group_id', activity.slice(2)).gte('start_date', monthStart(todayISO()));
+    const today = todayISO();
+    const [months, group, settings] = await Promise.all([
+      db().from('activities').select('id,default_price,start_date').eq('class_group_id', activity.slice(2)).gte('start_date', monthStart(today)).order('start_date', { ascending: true }),
+      db().from('class_groups').select('day').eq('id', activity.slice(2)).maybeSingle(),
+      loadSettings(),
+    ]);
     if (months.error) return { error: `קריאת חודשי הקבוצה נכשלה: ${months.error.message}` };
     if (!months.data?.length) return { error: 'לקבוצה הזו אין חודשים פתוחים — צרי אותם במסך החוגים' };
-    return { acts: months.data as ActRow[] };
+    const acts: ActRow[] = [];
+    for (const m of months.data as (ActRow & { start_date: string | null })[]) {
+      if (m.start_date !== monthStart(today)) { acts.push({ id: m.id, default_price: m.default_price }); continue; }
+      const monthly = Number(m.default_price ?? settings.default_full_price ?? 0);
+      const j = joinMonthPrice(monthly, (group.data as any)?.day, today);
+      if (j && j.left === 0) continue;
+      acts.push({ id: m.id, default_price: j && j.left < j.total ? j.price : m.default_price });
+    }
+    if (!acts.length) return { error: 'לקבוצה הזו אין חודשים פתוחים — צרי אותם במסך החוגים' };
+    return { acts };
   }
   const camp = await db().from('activities').select('id,default_price').eq('id', Number(activity.slice(2))).maybeSingle();
   if (camp.error) return { error: `קריאת הקייטנה נכשלה: ${camp.error.message}` };

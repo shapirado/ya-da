@@ -5,6 +5,7 @@ import { allCharges, childName, fmtMoney, groupLabel, maps, type Charge } from '
 import { monthLabel, monthStart } from '@/lib/dates';
 import { enrollChild, markCharge, removeCharge, setChargePrice, stopParticipation, updateChild } from '@/app/actions';
 import { EnrollFields } from '@/components/EnrollFields';
+import type { JoinInfo } from '@/components/JoinMonth';
 import { BackIcon, Dot, GenderIcon, PageHeader, StatusChip } from '@/components/ui';
 import { Flash } from '@/components/Flash';
 import { SubmitButton } from '@/components/SubmitButton';
@@ -27,6 +28,22 @@ export default async function ChildPage({ params, searchParams }: { params: Prom
   const payers = [...m.payers].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'he'));
   const thisMonth = monthStart(m.today);
   const hiddenFuture = charges.filter((c) => c.isClass && !c.started).length;
+  // a group whose first month for this child is this month: its join month shows under the group in the שיבוץ form
+  const join: Record<string, JoinInfo> = {};
+  for (const [gid, rows] of byGroup) {
+    const sorted = [...rows].sort((a, b) => (a.month || '').localeCompare(b.month || ''));
+    const first = sorted[0];
+    if (!first || first.month !== thisMonth) continue;
+    const act = mp.activities.get(first.activityId);
+    join[gid] = {
+      linkId: first.linkId,
+      month: thisMonth,
+      price: first.price,
+      locked: first.status === 'paid' || first.status === 'deposit' || first.paid > 0,
+      base: sorted[1]?.price ?? Number(act?.default_price ?? m.settings.default_full_price ?? first.price),
+      day: mp.groups.get(gid)?.day ?? null,
+    };
+  }
 
   return (
     <>
@@ -95,8 +112,9 @@ export default async function ChildPage({ params, searchParams }: { params: Prom
 
           <form action={enrollChild} className="card flex flex-col gap-3">
             <input type="hidden" name="id" value={id} />
-            <EnrollFields m={m} exclude={{ groups: [...byGroup.keys()], camps: camps.map((c) => c.activityId) }} />
-            <SubmitButton pending="יוצרת חיובים…" title="אצור את החיובים לפעילויות שסימנת">שיבוץ</SubmitButton>
+            <EnrollFields m={m} exclude={{ groups: [], camps: camps.map((c) => c.activityId) }}
+              current={[...byGroup.entries()].filter(([, rows]) => rows.some((r) => (r.month || '') >= thisMonth)).map(([gid]) => gid)} join={join} />
+            <SubmitButton pending="שומרת…" title="אצור חיובים לפעילויות שסימנת, או אעביר לחוג אחר">שמירת שיבוץ</SubmitButton>
           </form>
         </aside>
       </div>
