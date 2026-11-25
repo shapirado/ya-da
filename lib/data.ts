@@ -64,6 +64,19 @@ export async function addAlias(payerId: string, name: string): Promise<string | 
   return (await db().from('payer_name_aliases').update({ raw_name: [...names, alias] }).eq('morning_customer_id', payerId)).error?.message ?? null;
 }
 
+/** Takes a name off the payer's alias array. Returns an error message, or null. */
+export async function removeAlias(payerId: string, name: string): Promise<string | null> {
+  const alias = name.trim();
+  if (!alias) return null;
+  const cur = await db().from('payer_name_aliases').select('raw_name').eq('morning_customer_id', payerId).maybeSingle();
+  if (cur.error) return cur.error.message;
+  if (!cur.data) return null;
+  const names = aliasNames((cur.data as AliasRow).raw_name);
+  const left = names.filter((n) => normName(n) !== normName(alias));
+  if (left.length === names.length) return null;
+  return (await db().from('payer_name_aliases').update({ raw_name: left }).eq('morning_customer_id', payerId)).error?.message ?? null;
+}
+
 /** Every logged payment — the scanner's duplicate check reads these. Empty when the table isn't there. */
 export async function loadPaymentLog(): Promise<PaymentLog[]> {
   try {

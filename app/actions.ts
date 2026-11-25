@@ -4,13 +4,13 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { db } from '@/lib/supabase';
 import { requireAccess } from '@/lib/auth';
-import { addAlias, loadAliases, loadModel, loadPaymentLog, loadSettings, P_EMAILS, P_PHONE } from '@/lib/data';
+import { addAlias, loadAliases, loadModel, loadPaymentLog, loadSettings, P_EMAILS, P_PHONE, removeAlias } from '@/lib/data';
 import { allCharges, allocate, childName, familyDebts, groupLabel, isClass, openCharges, round2, statusFor, type Charge, type Model } from '@/lib/billing';
 import { rankPayers, normName, sameFirstName, splitSender } from '@/lib/matching';
-import { createMorningClient, createReceipt, morningConfigured, searchMorningClients, searchMorningItems, testMorningConnection, type MorningClientHit, type MorningItemHit, type MorningTestResult } from '@/lib/morning';
+import { activityLabels, createMorningClient, createReceipt, getMorningClient, updateMorningClient, morningConfigured, searchMorningClients, searchMorningItems, testMorningConnection, type MorningClientHit, type MorningItemHit, type MorningTestResult } from '@/lib/morning';
 import { extractPaymentsDebug, extractRegistration, type ExtractedPayment, type ExtractedRegistration } from '@/lib/gemini';
 import { addMonths, fmtDate, joinMonthPrice, monthEnd, monthLabel, monthStart, monthsBetween, todayISO } from '@/lib/dates';
-import type { PaymentLog, PaymentMethod } from '@/lib/types';
+import type { Alias, PaymentLog, PaymentMethod } from '@/lib/types';
 
 // ---------- helpers ----------
 
@@ -225,13 +225,27 @@ export async function createChild(fd: FormData) {
   const family = s(fd, 'family_name');
   if (!first) fail(back, 'צריך שם פרטי');
 
-  // A new payer always arrives with a Morning customer id chosen in the form (found by search, or opened
-  // with the explicit "add" button). Saving never opens a Morning customer by itself.
+  // A new payer is a Morning customer chosen in the form (found by search), or one marked there with the
+  // explicit "add" button — that one is opened now, on save, named "<parent> (<child>)" and labelled by the
+  // ticked activities (+ the labels chosen in the form).
+  const autoLabels = activityLabels({ classes: fd.getAll('group').length > 0, camps: fd.getAll('camp').length > 0 });
   const payerFromForm = async (prefix: 'payer' | 'payer2', who: string): Promise<string> => {
-    const id = s(fd, `${prefix}_morning_id`);
-    const name = s(fd, `${prefix}_name`);
-    if (!id) fail(back, `${who}: צריך לבחור לקוח/ה מ-Morning או להוסיף כלקוח/ה חדש/ה לפני השמירה`);
+    let id = s(fd, `${prefix}_morning_id`);
+    let name = s(fd, `${prefix}_name`);
     if (!name) fail(back, `${who}: צריך שם`);
+    if (!id && s(fd, `${prefix}_morning_new`) === '1') {
+      if (!morningConfigured()) fail(back, 'מפתחות Morning לא מוגדרים — אי אפשר לפתוח לקוח');
+      name = name.endsWith(`(${first})`) ? name : `${name} (${first})`;
+      try {
+        id = await createMorningClient({
+          name, phone: s(fd, `${prefix}_phone`), email: s(fd, `${prefix}_email`),
+          labels: [...autoLabels, ...fd.getAll(`${prefix}_labels`).map(String)],
+        });
+      } catch (e) {
+        fail(back, `${who}: לא הצלחתי לפתוח לקוח ב-Morning — ${e instanceof Error ? e.message : 'שגיאה'}`);
+      }
+    }
+    if (!id) fail(back, `${who}: צריך לבחור לקוח/ה מ-Morning או להוסיף כלקוח/ה חדש/ה לפני השמירה`);
     // a Morning customer may already be a payer here
     const known = await must(db().from('payer_name_aliases').select('morning_customer_id').eq('morning_customer_id', id).limit(1), back) as any[];
     if (!known.length) {
@@ -304,15 +318,129 @@ export async function createChild(fd: FormData) {
   done(`/children/${child.id}`, { ok: `שמרתי את ${first} ויצרתי ${n} חיובים${payMsg}` });
 }
 
-export async function updateChild(fd: FormData) {
+/**
+ * Child page, one "שמירה" for both cards: the details (names, gender, payers and their phone/email — those go
+ * to Morning and the local payer row), then the enrolment. One redirect, one message.
+ */
+export async function saveChild(fd: FormData) {
   await requireAccess();
   const id = s(fd, 'id');
   const back = `/children/${id}`;
-  await must(db().from('children').update({
-    first_name: s(fd, 'first_name'), family_name: s(fd, 'family_name') || null, gender: s(fd, 'gender') || null,
-    morning_customer_id: s(fd, 'payer') || null,
-  }).eq('id', id), back);
-  done(back, { ok: 'שמרתי את הפרטים' });
+  const { notes, warnings } = await saveDetails(id, fd, back);
+  notes.push(...await applyEnrollment(id, fd, back, 'שמרתי את הפרטים, אבל '));
+  const params: Record<string, string> = { ok: notes.join(' · ') };
+  if (warnings.length) params.err = warnings.join(' · ');
+  done(back, params);
+}
+
+/**
+ * Names, gender and the payers. Morning is the source of truth for phones and emails; the alias row
+ * (payer_name_aliases.phone/email, used for matching) follows it.
+ * - payer 1: Morning `phone` + `emails[0]`
+ * - second parent, p2_mode:
+ *   existing → children.morning_customer_id_2 (its own phone/email edited the same way)
+ *   new + "הוספה כאיש/אשת קשר" → payer 1's contact: `contactPerson`, `mobile`, `emails[1]`; name added to payer 1's aliases
+ *   new without it → a new Morning customer "<name> (<child>)" + alias row, set as morning_customer_id_2
+ *   contact → payer 1's existing contact, edited
+ *   none → no second payer (morning_customer_id_2 cleared)
+ * - contact_remove=1 clears payer 1's contact in Morning and drops the name from the aliases
+ */
+async function saveDetails(id: string, fd: FormData, back: string): Promise<{ notes: string[]; warnings: string[] }> {
+  const notes = ['שמרתי את הפרטים'];
+  const warnings: string[] = [];
+  const err = (e: unknown) => (e instanceof Error ? e.message : 'שגיאה');
+  const first = s(fd, 'first_name');
+  const payer1 = s(fd, 'payer') || null;
+  const mode = s(fd, 'p2_mode');
+  const row: Record<string, unknown> = {
+    first_name: first, family_name: s(fd, 'family_name') || null, gender: s(fd, 'gender') || null,
+    morning_customer_id: payer1,
+  };
+  if (mode === 'existing') row.morning_customer_id_2 = s(fd, 'payer2') || null;
+  if (mode === 'none') row.morning_customer_id_2 = null;
+
+  const aliasRow = async (pid: string, patch: Record<string, string | null>) => {
+    await must(db().from('payer_name_aliases').update(patch).eq('morning_customer_id', pid), back);
+  };
+  /** A payer's own phone/email: Morning first, then the alias row. */
+  const ownDetails = async (pid: string, k: '1' | '2', who: string) => {
+    if (!fd.has(`phone_${k}`)) return null;
+    let c;
+    try { c = await getMorningClient(pid); } catch (e) { warnings.push(`לא קראתי את ${who} מ-Morning: ${err(e)}`); return null; }
+    const phone = s(fd, `phone_${k}`);
+    const email = s(fd, `email_${k}`);
+    // the page shows `mobile` when `phone` is empty and there's no contact — that counts as unchanged
+    const shown = c.phone || (c.contactPerson ? '' : c.mobile);
+    if (phone === shown && email === (c.emails[0] || '')) return c;
+    const emails = [email, ...c.emails.slice(1)].filter(Boolean).slice(0, 5);
+    try {
+      await updateMorningClient(pid, { phone, emails });
+    } catch (e) { warnings.push(`לא עדכנתי את ${c.name || who} ב-Morning: ${err(e)}`); return c; }
+    await aliasRow(pid, { [P_PHONE]: phone || null, [P_EMAILS]: email || null });
+    notes.push(`עדכנתי את ${c.name || who} ב-Morning`);
+    return { ...c, phone, emails: c.emails.length ? [email, ...c.emails.slice(1)] : [email] };
+  };
+
+  // payer 1 — its Morning record is also where a contact lives
+  let c1 = payer1 ? await ownDetails(payer1, '1', 'המשלם/ת') : null;
+  if (payer1 && !c1 && (s(fd, 'contact_remove') === '1' || mode === 'contact' || (mode === 'new' && fd.has('payer2_contact')))) {
+    try { c1 = await getMorningClient(payer1); } catch (e) { warnings.push(`לא קראתי את המשלם/ת מ-Morning: ${err(e)}`); }
+  }
+
+  if (payer1 && c1 && s(fd, 'contact_remove') === '1' && c1.contactPerson) {
+    const old = c1.contactPerson;
+    try {
+      await updateMorningClient(payer1, { contactPerson: '', mobile: '', emails: [c1.emails[0], ...c1.emails.slice(2)].filter(Boolean) });
+      const e = await removeAlias(payer1, old);
+      if (e) warnings.push(e);
+      notes.push(`הסרתי את ${old} מאנשי הקשר של ${c1.name}`);
+      c1 = { ...c1, contactPerson: '', mobile: '', emails: [c1.emails[0], ...c1.emails.slice(2)].filter(Boolean) };
+    } catch (e) { warnings.push(`לא הסרתי את איש/אשת הקשר ב-Morning: ${err(e)}`); }
+  }
+
+  const name2 = s(fd, 'p2_name');
+  const phone2 = s(fd, 'phone_2');
+  const email2 = s(fd, 'email_2');
+  /** payer 1's contact = this name/phone/email (emails[1]) */
+  const setContact = async (added: boolean) => {
+    if (!payer1 || !c1) { warnings.push('איש/אשת קשר נשמר/ת על המשלם/ת הראשון/ה — צריך לבחור משלם/ת'); return; }
+    if (!name2) { warnings.push('צריך שם לאיש/אשת הקשר'); return; }
+    const emails = [c1.emails[0] || '', email2, ...c1.emails.slice(added ? 1 : 2)].filter(Boolean).slice(0, 5);
+    if (!added && name2 === c1.contactPerson && phone2 === c1.mobile && email2 === (c1.emails[1] || '')) return;
+    try {
+      await updateMorningClient(payer1, { contactPerson: name2, mobile: phone2, emails });
+    } catch (e) { warnings.push(`לא שמרתי את איש/אשת הקשר ב-Morning: ${err(e)}`); return; }
+    if (!added && c1.contactPerson && c1.contactPerson !== name2) await removeAlias(payer1, c1.contactPerson);
+    const e = await addAlias(payer1, name2);
+    if (e) warnings.push(e);
+    notes.push(added ? `הוספתי את ${name2} כאיש/אשת קשר של ${c1.name}` : `עדכנתי את איש/אשת הקשר ${name2}`);
+  };
+
+  if (mode === 'contact') await setContact(false);
+  if (mode === 'new' && fd.has('payer2_contact')) await setContact(true);
+  if (mode === 'new' && !fd.has('payer2_contact')) {
+    if (!name2) warnings.push('צריך שם למשלם/ת השני/ה');
+    else if (!morningConfigured()) warnings.push('מפתחות Morning לא מוגדרים — לא יצרתי משלם/ת שני/ה');
+    else {
+      const clientName = first && !name2.endsWith(`(${first})`) ? `${name2} (${first})` : name2;
+      try {
+        const mine = await must(db().from('child_activity').select('activities(*)').eq('child_id', id), back) as any[];
+        const acts = mine.map((r) => r.activities).filter(Boolean);
+        const labels = activityLabels({
+          classes: acts.some((a) => isClass(a)) || fd.getAll('group').length > 0,
+          camps: acts.some((a) => !isClass(a)) || fd.getAll('camp').length > 0,
+        });
+        const newId = await createMorningClient({ name: clientName, phone: phone2, email: email2, labels });
+        await must(db().from('payer_name_aliases').insert({ morning_customer_id: newId, name: clientName, [P_PHONE]: phone2 || null, [P_EMAILS]: email2 || null }), back);
+        row.morning_customer_id_2 = newId;
+        notes.push(`יצרתי את ${clientName} ב-Morning`);
+      } catch (e) { warnings.push(`לא יצרתי את המשלם/ת השני/ה ב-Morning: ${err(e)}`); }
+    }
+  }
+  if (mode === 'existing' && s(fd, 'payer2')) await ownDetails(s(fd, 'payer2'), '2', 'המשלם/ת השני/ה');
+
+  await must(db().from('children').update(row).eq('id', id), back);
+  return { notes, warnings };
 }
 
 /**
@@ -323,10 +451,7 @@ export async function updateChild(fd: FormData) {
  * - a group ticked on its own = joined from the join date (first month prorated)
  * - a current group unticked on its own does nothing — stopping is the group's own button
  */
-export async function enrollChild(fd: FormData) {
-  await requireAccess();
-  const id = s(fd, 'id');
-  const back = `/children/${id}`;
+async function applyEnrollment(id: string, fd: FormData, back: string, failPrefix = ''): Promise<string[]> {
   const thisMonth = monthStart(todayISO());
   const mine = await must(db().from('child_activity').select('id,activity_id').eq('child_id', id), back) as { id: number; activity_id: number }[];
   const acts = mine.length
@@ -341,14 +466,14 @@ export async function enrollChild(fd: FormData) {
   const notes: string[] = [];
   let joinGroups = added;
   if (removed.length && added.length) {
-    if (removed.length !== 1 || added.length !== 1) fail(back, 'אפשר להעביר מחוג אחד לחוג אחד בכל פעם');
+    if (removed.length !== 1 || added.length !== 1) fail(back, failPrefix + 'אפשר להעביר מחוג אחד לחוג אחד בכל פעם');
     const [fromGroup, toGroup] = [removed[0], added[0]];
     const next = addMonths(thisMonth, 1);
     const moving = mine.filter((r) => { const a = actOf.get(r.activity_id); return a?.class_group_id === fromGroup && (a.start_date || '') >= next; });
     const target = await must(db().from('activities').select('id,start_date').eq('class_group_id', toGroup).gte('start_date', next), back) as { id: number; start_date: string }[];
     const byMonth = new Map(target.map((a) => [monthStart(a.start_date), a.id]));
     const missing = moving.map((r) => actOf.get(r.activity_id)!.start_date!).filter((d) => !byMonth.has(monthStart(d)));
-    if (missing.length) fail(back, `לחוג החדש אין את החודשים: ${missing.map(monthLabel).join(', ')} — צרי אותם במסך החוגים ואז נסי שוב`);
+    if (missing.length) fail(back, failPrefix + `לחוג החדש אין את החודשים: ${missing.map(monthLabel).join(', ')} — צרי אותם במסך החוגים ואז נסי שוב`);
     for (const r of moving) {
       const to = byMonth.get(monthStart(actOf.get(r.activity_id)!.start_date!))!;
       await must(db().from('child_activity').update({ activity_id: to }).eq('id', r.id), back);
@@ -360,7 +485,7 @@ export async function enrollChild(fd: FormData) {
   }
   const n = await enrollRows(id, fd, back, joinGroups);
   if (n) notes.unshift(`הוספתי ${n} חיובים`);
-  done(back, { ok: notes.join(' · ') || 'לא היה מה לשנות' });
+  return notes;
 }
 
 export async function setChargePrice(fd: FormData) {
@@ -402,14 +527,6 @@ export async function stopParticipation(fd: FormData) {
     .neq('payment_status', 'paid').or('paid_amount.is.null,paid_amount.eq.0')
     .select('id'), back) as any[];
   done(back, { ok: `מחקתי ${rows.length} חיובים עתידיים` });
-}
-
-export async function removeCharge(fd: FormData) {
-  await requireAccess();
-  const childId = s(fd, 'child');
-  const back = `/children/${childId}`;
-  await must(db().from('child_activity').delete().eq('id', Number(s(fd, 'link'))).neq('payment_status', 'paid'), back);
-  done(back, { ok: 'מחקתי את החיוב' });
 }
 
 export async function markCharge(fd: FormData) {
@@ -454,7 +571,34 @@ export type PayerOption = {
   kids: { id: string; first: string; name: string }[]; // the payer's children
   focus: Focus; // what the note points at, resolved against this payer
   alerts: DupAlert[]; // reasons this payment looks like a duplicate
+  /** the sender looks like another parent of this payer's children ("גילי" paying for גור) — offer to add them */
+  second?: SecondParentOffer | null;
 };
+
+export type SecondParentOffer = {
+  ownName: string; // the sender's own name, as read: "גילי"
+  childFirst: string; // for the client name "<name> (<child>)": the child this payment is for, else all of them
+  kids: { id: string; first: string; hasSecond: boolean }[]; // payer 1's children; those with a payer 2 already keep it
+};
+
+/**
+ * Offered when the payer was found through a child (not by name or alias) and the sender's own name isn't
+ * payer 1, one of payer 1's other names (contacts are kept there too), or a child's existing payer 2.
+ */
+function secondParentOffer(model: Model, aliases: Alias[], payerId: string, reason: string, ownName: string, focusChildId: string | null): SecondParentOffer | null {
+  const own = ownName.trim();
+  if (!own || !['sender', 'children', 'family'].includes(reason)) return null;
+  const first = (v: string | null | undefined) => (v || '').trim().split(/\s+/)[0];
+  if (sameFirstName(own, first(model.payers.find((p) => p.morning_customer_id === payerId)?.name))) return null;
+  if (aliases.some((a) => a.payer_id === payerId && sameFirstName(own, first(a.raw_name)))) return null;
+  const kids = model.children.filter((c) => c.morning_customer_id === payerId);
+  if (!kids.length) return null;
+  const seconds = kids.map((k) => k.morning_customer_id_2).filter(Boolean).map((id) => model.payers.find((p) => p.morning_customer_id === id)?.name);
+  if (seconds.some((n) => sameFirstName(own, first(n)))) return null;
+  const names = (focusChildId ? kids.filter((k) => k.id === focusChildId) : kids).map((k) => k.first_name || '').filter(Boolean);
+  const childFirst = names.length > 1 ? `${names.slice(0, -1).join(', ')} ו${names[names.length - 1]}` : names[0] || '';
+  return { ownName: own, childFirst, kids: kids.map((k) => ({ id: k.id, first: k.first_name || '', hasSecond: !!k.morning_customer_id_2 })) };
+}
 
 export type DupAlert = { text: string; url: string | null };
 
@@ -555,31 +699,6 @@ export async function searchMorning(name: string): Promise<MorningSearchResult> 
 export async function morningLabels(): Promise<string[]> {
   await requireAccess();
   return loadMorningLabels();
-}
-
-export type AddMorningCustomerResult = { ok: true; id: string; name: string } | { ok: false; error: string };
-
-/**
- * New-child form: opens a Morning customer on an explicit click, named "<parent> (<child>)".
- * Touches Morning only — the payer row is written when the form is saved.
- */
-export async function addMorningCustomer(input: { name: string; phone: string; email: string; labels: string[]; childFirst: string }): Promise<AddMorningCustomerResult> {
-  await requireAccess();
-  try {
-    const parent = input.name.trim();
-    const childFirst = input.childFirst.trim();
-    if (!parent) return { ok: false, error: 'צריך שם מלא' };
-    if (!childFirst) return { ok: false, error: 'צריך שם פרטי לילד/ה' };
-    if (!morningConfigured()) return { ok: false, error: 'מפתחות Morning לא מוגדרים' };
-    const name = parent.endsWith(`(${childFirst})`) ? parent : `${parent} (${childFirst})`;
-    const payload = { name, phone: input.phone.trim(), email: input.email.trim(), labels: input.labels };
-    console.log('[morning debug] addMorningCustomer → /clients:', JSON.stringify(payload, null, 2));
-    const id = await createMorningClient(payload);
-    console.log('[morning debug] /clients → id:', id);
-    return { ok: true, id, name };
-  } catch (e) {
-    return { ok: false, error: (e as Error).message };
-  }
 }
 
 function toOption(c: Charge): ChargeOption {
@@ -786,7 +905,10 @@ export async function scanScreenshot(base64: string, mimeType: string): Promise<
         payers: model.payers, aliases, children: model.children, debtByPayer,
       });
       const ctx: ScanCtx = { amount: p.amount || 0, date: p.date || '', reference: p.reference || '', suggest };
-      const candidates = ranked.map((r) => buildOption(model, logs, enroll, r.payerId, ctx, { score: Math.round(r.score * 100), reason: r.reason, matchedChildIds: r.matchedChildIds }));
+      const candidates = ranked.map((r) => {
+        const opt = buildOption(model, logs, enroll, r.payerId, ctx, { score: Math.round(r.score * 100), reason: r.reason, matchedChildIds: r.matchedChildIds });
+        return { ...opt, second: secondParentOffer(model, aliases, r.payerId, r.reason, p.payerOwnName || '', opt.focus.childId) };
+      });
       return { extracted: p, candidates, suggest, alerts: referenceAlerts(logs, p.reference || '') };
     });
     const allPayers = model.payers.map((p) => ({ id: p.morning_customer_id, name: p.name || '—' })).sort((a, b) => a.name.localeCompare(b.name, 'he'));
@@ -927,7 +1049,7 @@ export async function createCustomerFromScan(input: NewCustomerInput): Promise<N
     const clientName = input.morningClientId || payerName.endsWith(`(${childFirst})`) ? payerName : `${payerName} (${childFirst})`;
     let payerId = input.morningClientId;
     if (!payerId) {
-      const clientPayload = { name: clientName, phone: input.payerPhone.trim(), email: input.payerEmail.trim(), labels: input.labels };
+      const clientPayload = { name: clientName, phone: input.payerPhone.trim(), email: input.payerEmail.trim(), labels: [...activityLabels({ classes: input.activity.startsWith('g:'), camps: input.activity.startsWith('c:') }), ...input.labels] };
       console.log('[morning debug] createCustomerFromScan → /clients:', JSON.stringify(clientPayload, null, 2));
       payerId = await createMorningClient(clientPayload);
       console.log('[morning debug] /clients → payerId:', payerId);
@@ -1056,9 +1178,14 @@ export type CommitInput = {
   reference: string;
   // kind/depositItem: only for a first camp payment below its price (see CampPayKind)
   allocations: { linkId: number; amount: number; kind?: CampPayKind | null; depositItem?: DepositItem | null }[];
+  /**
+   * The sender as payer 1's children's second parent: opened as a new Morning client "<name> (<child>)" on this
+   * click, set as payer 2 of those of payer 1's children who have none, and the receipt is issued to them.
+   */
+  secondParent?: { name: string; phone: string; email: string } | null;
 };
 
-export type CommitResult = { ok: true; number: string | null; url: string | null } | { ok: false; error: string };
+export type CommitResult = { ok: true; number: string | null; url: string | null; warning?: string } | { ok: false; error: string };
 
 export async function commitPayment(input: CommitInput): Promise<CommitResult> {
   await requireAccess();
@@ -1086,9 +1213,35 @@ export async function commitPayment(input: CommitInput): Promise<CommitResult> {
       return { a, link, act, child, paid, description: line.description, itemId: line.itemId, status: line.status };
     });
 
+    // the second parent, if asked for: a new Morning client who gets this receipt
+    let receiptClient = input.payerId;
+    let warning: string | undefined;
+    if (input.secondParent?.name.trim()) {
+      if (!morningConfigured()) return { ok: false, error: 'מפתחות Morning לא מוגדרים — אי אפשר לפתוח לקוח' };
+      const sp = input.secondParent;
+      const kids = model.children.filter((c) => c.morning_customer_id === input.payerId);
+      const kidIds = new Set(kids.map((k) => k.id));
+      const kidActs = model.links.filter((l) => kidIds.has(l.child_id)).map((l) => model.activities.find((a) => a.id === l.activity_id)).filter((a): a is NonNullable<typeof a> => !!a);
+      const name = sp.name.trim();
+      receiptClient = await createMorningClient({
+        name, phone: sp.phone.trim(), email: sp.email.trim(),
+        labels: activityLabels({ classes: kidActs.some((a) => isClass(a)), camps: kidActs.some((a) => !isClass(a)) }),
+      });
+      const ins = await db().from('payer_name_aliases').insert({
+        morning_customer_id: receiptClient, name, [P_PHONE]: sp.phone.trim() || null, [P_EMAILS]: sp.email.trim() || null,
+      });
+      if (ins.error) warning = `הלקוח/ה נפתח/ה ב-Morning אבל לא נשמר/ה כאן: ${ins.error.message}`;
+      const free = kids.filter((k) => !k.morning_customer_id_2).map((k) => k.id);
+      if (free.length) {
+        const upd = await db().from('children').update({ morning_customer_id_2: receiptClient }).in('id', free);
+        if (upd.error) warning = [warning, `לא קישרתי את ${name} לילדים: ${upd.error.message}`].filter(Boolean).join(' · ');
+      }
+      if (!ins.error) model.payers.push({ morning_customer_id: receiptClient, name, phone: sp.phone || null, email: sp.email || null });
+    }
+
     const extra = round2(input.amount - sum);
     const doc = await createReceipt({
-      clientId: input.payerId,
+      clientId: receiptClient,
       date: input.date || todayISO(),
       method: input.method,
       amount: input.amount,
@@ -1109,21 +1262,22 @@ export async function commitPayment(input: CommitInput): Promise<CommitResult> {
     }
 
     await db().from('payment_log').insert({
-      paid_at: input.date || null, payer_id: input.payerId, raw_name: input.rawName || null,
+      paid_at: input.date || null, payer_id: receiptClient, raw_name: input.rawName || null,
       amount: input.amount, method: input.method, note: input.note || null, reference: input.reference || null,
       morning_document_id: doc.id, morning_document_number: doc.number, morning_document_url: doc.url,
       allocations: allocs.map((a) => ({ child_activity_id: a.linkId, amount: a.amount })),
     });
 
     // remember the name on the screenshot for next time
-    const payer = model.payers.find((p) => p.morning_customer_id === input.payerId);
+    // (a new second parent gets it, so their next payment is matched to them)
+    const payer = model.payers.find((p) => p.morning_customer_id === receiptClient);
     if (input.rawName && normName(input.rawName) !== normName(payer?.name)) {
-      const fail = await addAlias(input.payerId, input.rawName);
+      const fail = await addAlias(receiptClient, input.rawName);
       if (fail) console.log('[alias] not saved:', fail);
     }
 
     revalidatePath('/', 'layout');
-    return { ok: true, number: doc.number, url: doc.url };
+    return { ok: true, number: doc.number, url: doc.url, warning };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }

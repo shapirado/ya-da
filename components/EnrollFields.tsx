@@ -10,17 +10,18 @@ import { Dot } from './ui';
  * `current`: the child's current groups — listed ticked and marked; unticking one and ticking another moves the child.
  * `join`: per current group, its join month when that is this month — shown under the group with its price and join date.
  */
-export function EnrollFields({ m, exclude = { groups: [], camps: [] }, current = [], join = {} }: { m: Model; exclude?: { groups: string[]; camps: number[] }; current?: string[]; join?: Record<string, JoinInfo> }) {
+export function EnrollFields({ m, exclude = { groups: [], camps: [] }, current = [], join = {}, heading = false }: { m: Model; exclude?: { groups: string[]; camps: number[] }; current?: string[]; join?: Record<string, JoinInfo>; heading?: boolean }) {
   const full = m.settings.default_full_price;
   const disc = m.settings.default_discount_price;
   const season = seasonFor(m.today);
   const joinDefault = m.today < season.start ? season.start : m.today;
   const camps = m.activities.filter((a) => !isClass(a) && (!a.end_date || a.end_date >= m.today) && !exclude.camps.includes(a.id));
-  const groups = m.groups.filter((g) => !exclude.groups.includes(g.id));
+  // the current group is the first row
+  const groups = m.groups.filter((g) => !exclude.groups.includes(g.id)).sort((a, b) => Number(current.includes(b.id)) - Number(current.includes(a.id)));
 
   return (
     <fieldset className="border-0 m-0 p-0 flex flex-col gap-2">
-      <legend className="text-[13px] font-semibold text-muted pb-2">שיבוץ לפעילויות</legend>
+      <legend className={heading ? 'text-lg font-bold text-ink pb-4' : 'text-[13px] font-semibold text-muted pb-2'}>שיבוץ לפעילויות</legend>
       {groups.map((g) => {
         const isCurrent = current.includes(g.id);
         return (
@@ -53,13 +54,22 @@ export function EnrollFields({ m, exclude = { groups: [], camps: [] }, current =
           <DateField name="from" defaultValue={joinDefault} min={season.start} max={season.end} allowClear={false} ariaLabel="תאריך הצטרפות לחוג" />
         </label>
       )}
-      <span className="text-xs text-muted">
-        בחוג אצור חיוב לכל חודש עד סוף השנה; בחודש ההצטרפות המחיר הוא לפי השיעורים שנשארו בו. קייטנה היא חיוב אחד. ״מחיר מלא״ עוקב אחרי מחיר הפעילות.
-        {current.length > 0 && ' מעבר לחוג אחר (הסרת הסימון מהחוג הנוכחי וסימון חוג אחר) חל מהחודש הבא — החודש הנוכחי נשאר בחוג הקודם.'}
-      </span>
+      {current.length > 0 ? (
+        <span className="flex items-center gap-1.5 text-xs text-muted pt-1">
+          מעבר לחוג אחר חל מהחודש הבא — החודש הנוכחי נשאר בחוג הקודם.
+          <span tabIndex={0} role="img" title={MORE_HELP} aria-label={MORE_HELP}
+            className="w-[18px] h-[18px] flex-none rounded-full border border-line-strong text-muted grid place-items-center text-[11px] font-semibold cursor-help">i</span>
+        </span>
+      ) : (
+        <span className="text-xs text-muted">
+          בחוג אצור חיוב לכל חודש עד סוף השנה; בחודש ההצטרפות המחיר הוא לפי השיעורים שנשארו בו. קייטנה היא חיוב אחד. ״מחיר מלא״ עוקב אחרי מחיר הפעילות.
+        </span>
+      )}
     </fieldset>
   );
 }
+
+const MORE_HELP = 'בחוג אצור חיוב לכל חודש עד סוף השנה; בחודש ההצטרפות המחיר הוא לפי השיעורים שנשארו בו. קייטנה היא חיוב אחד. ״מחיר מלא״ עוקב אחרי מחיר הפעילות. כדי לעבור חוג — מסירים את הסימון מהחוג הנוכחי ומסמנים חוג אחר.';
 
 function PriceChoice({ name, customName, full, disc }: { name: string; customName: string; full: number | null; disc: number | null }) {
   return (

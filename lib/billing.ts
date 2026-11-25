@@ -32,6 +32,8 @@ export type Charge = {
   started: boolean;
   morningItemId: string | null;
   payerId: string | null;
+  /** child_activity.invoices — Morning document ids of the receipts for this charge */
+  invoices: string[];
 };
 
 export const CLASS_TYPE = 'חוג';
@@ -129,6 +131,7 @@ export function allCharges(m: Model): Charge[] {
       started: isStarted(a, m.today),
       morningItemId: a.morning_item_id,
       payerId: c.morning_customer_id,
+      invoices: (l.invoices || []).filter(Boolean).map(String),
     });
   }
   return out.sort((x, y) => (x.month || '').localeCompare(y.month || '') || x.childName.localeCompare(y.childName, 'he'));

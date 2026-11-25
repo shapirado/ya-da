@@ -8,7 +8,7 @@ export function Dot({ color, size = 10, square = false }: { color: string; size?
  * Page title. `children` are the desktop actions; on phones they hide and `mobile` (small icon
  * buttons) shows instead, and `lead` (a back link or a logo) sits before the title.
  */
-export function PageHeader({ title, sub, children, mobile, lead }: { title: string; sub?: React.ReactNode; children?: React.ReactNode; mobile?: React.ReactNode; lead?: React.ReactNode }) {
+export function PageHeader({ title, sub, children, mobile, lead }: { title: React.ReactNode; sub?: React.ReactNode; children?: React.ReactNode; mobile?: React.ReactNode; lead?: React.ReactNode }) {
   return (
     <header className="flex flex-nowrap md:flex-wrap items-center justify-between gap-3 px-1 py-1 md:py-2">
       {lead && <span className="md:hidden flex-none flex">{lead}</span>}

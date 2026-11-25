@@ -381,6 +381,17 @@ function PaymentCard({ item, preview, debug, allPayers, enroll, labels }: { item
   const fresh = () => { touched.current = false; splitFor.current = ''; setSplitNote(''); };
   const edited = () => { touched.current = true; setSplitNote(''); };
   const [receipt, setReceipt] = useState<{ number: string | null; url: string | null } | null>(null);
+  // the sender as a second parent of payer 1's children (opt-in; opened in Morning on "הפקת קבלה")
+  const [sp, setSp] = useState({ on: false, name: '', phone: '', email: '' });
+  const spFor = useRef<string | null>(null);
+  useEffect(() => {
+    const o = option?.second;
+    const key = option ? `${option.payerId}:${o?.ownName}` : null;
+    if (spFor.current === key) return;
+    spFor.current = key;
+    setSp({ on: false, name: o ? (o.childFirst ? `${o.ownName} (${o.childFirst})` : o.ownName) : '', phone: '', email: '' });
+  }, [option]);
+  const spActive = mode === 'existing' && !!option?.second && sp.on && !!sp.name.trim();
 
   const amt = Number(amount) || 0;
   const mobile = useIsMobile();
@@ -413,7 +424,7 @@ function PaymentCard({ item, preview, debug, allPayers, enroll, labels }: { item
     fresh();
     const opt = await payerCharges(option.payerId, scanCtx(s));
     if (opt) {
-      setOption({ ...opt, score: option.score, reason: option.reason });
+      setOption({ ...opt, score: option.score, reason: option.reason, second: option.second });
       setAlloc(Object.fromEntries(opt.suggested.map((a) => [a.linkId, String(a.amount)])));
       setNotDup(false);
     }
@@ -427,7 +438,7 @@ function PaymentCard({ item, preview, debug, allPayers, enroll, labels }: { item
     fresh();
     const opt = await payerCharges(option.payerId, scanCtx(s));
     if (opt) {
-      setOption({ ...opt, score: option.score, reason: option.reason });
+      setOption({ ...opt, score: option.score, reason: option.reason, second: option.second });
       setAlloc(Object.fromEntries(opt.suggested.map((a) => [a.linkId, String(a.amount)])));
     }
     router.refresh();
@@ -475,6 +486,7 @@ function PaymentCard({ item, preview, debug, allPayers, enroll, labels }: { item
       : option
         ? await commitPayment({
             payerId: option.payerId, rawName, amount: amt, date, method, note, reference: ex.reference || '',
+            secondParent: spActive ? { name: sp.name, phone: sp.phone, email: sp.email } : null,
             allocations: Object.entries(alloc).map(([linkId, v]) => {
               const c = option.charges.find((x) => x.linkId === Number(linkId));
               const d = c && depOn(c, v) ? depOf(c.linkId) : null;
@@ -485,6 +497,8 @@ function PaymentCard({ item, preview, debug, allPayers, enroll, labels }: { item
     if (!res) { setState('edit'); return; }
     if (!res.ok) { setMsg(res.error); setState('error'); return; }
     if (mode === 'new') setDoneName(payerName);
+    if (spActive) setDoneName(sp.name.trim());
+    if ('warning' in res && res.warning) setMsg(res.warning);
     setReceipt({ number: res.number, url: res.url });
     setState('done');
     router.refresh();
@@ -494,8 +508,9 @@ function PaymentCard({ item, preview, debug, allPayers, enroll, labels }: { item
     return (
       <div className="card flex flex-wrap items-center gap-3 !bg-ok-soft !border-ok-soft">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1E6E46" strokeWidth="2.4" aria-hidden><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
-        <span className="flex-1 text-ok">{doneName ? `רשמתי את ${ncFirst} אצל ${doneName} ו` : `ל${option?.name} `}הפקתי קבלה {receipt?.number || ''} על {money(amt)} ועדכנתי את החיובים</span>
+        <span className="flex-1 text-ok">{doneName && mode === 'new' ? `רשמתי את ${ncFirst} אצל ${doneName} ו` : doneName ? `פתחתי את ${doneName} ב-Morning כמשלם/ת נוסף/ת, ול${doneName} ` : `ל${option?.name} `}הפקתי קבלה {receipt?.number || ''} על {money(amt)} ועדכנתי את החיובים</span>
         {receipt?.url && <a href={receipt.url} target="_blank" rel="noopener" className="btn-secondary no-underline">פתיחת הקבלה</a>}
+        {msg && <span className="basis-full text-sm text-warn">{msg}</span>}
       </div>
     );
   }
@@ -537,7 +552,7 @@ function PaymentCard({ item, preview, debug, allPayers, enroll, labels }: { item
         {state === 'error' && <p role="alert" className="m-0 text-sm text-bad">לא הצלחתי: {msg}</p>}
     </>
   );
-  const payerShown = mode === 'new' ? clientName || '—' : option?.name || '—';
+  const payerShown = mode === 'new' ? clientName || '—' : spActive ? `${sp.name.trim()} · חדש/ה` : option?.name || '—';
 
   return (
     <div className="flex flex-wrap gap-3 md:gap-4 items-start">
@@ -688,6 +703,32 @@ function PaymentCard({ item, preview, debug, allPayers, enroll, labels }: { item
         </label>
         {!item.candidates.length && <p className="m-0 text-sm text-warn">לא מצאתי התאמה לשם ״{rawName}״ — בחרי משלם/ת קיים/ת, או פתחי לקוח/ה חדש/ה למעלה</p>}
         {option && <p className="m-0 text-sm text-muted leading-relaxed">{REASON[option.reason] || ''}{option.debt ? ` · חוב פתוח ${money(option.debt)}` : ''}</p>}
+        {option?.second && (
+          <div className={`flex flex-col gap-2.5 p-3 rounded-[14px] ${sp.on ? 'border-2 border-accent bg-[#F7F8FF]' : 'border border-line-strong'}`}>
+            <label className="flex items-start gap-2.5 text-sm min-h-11 cursor-pointer">
+              <input type="checkbox" checked={sp.on} onChange={(e) => setSp({ ...sp, on: e.target.checked })} className="w-5 h-5 mt-0.5 accent-accent flex-none" />
+              <span className="flex flex-col gap-0.5">
+                <b>{option.second.ownName} — להוסיף כמשלם/ת שני/ה?</b>
+                <span className="text-xs text-muted">
+                  השולח/ת הוא/היא לא {option.name}. בהפקת הקבלה אפתח ב-Morning לקוח/ה חדש/ה, הקבלה תצא על שמו/ה,
+                  {option.second.kids.some((k) => !k.hasSecond) ? ` ואקשר אותו/ה כמשלם/ת שני/ה של ${option.second.kids.filter((k) => !k.hasSecond).map((k) => k.first).join(', ')}` : ''}
+                  {option.second.kids.some((k) => k.hasSecond) ? ` (ל${option.second.kids.filter((k) => k.hasSecond).map((k) => k.first).join(', ')} כבר יש משלם/ת שני/ה — נשאר/ת)` : ''}
+                </span>
+              </span>
+            </label>
+            {sp.on && (
+              <>
+                <label className="label">שם ב-Morning
+                  <input value={sp.name} onChange={(e) => setSp({ ...sp, name: e.target.value })} className="input" />
+                </label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <label className="label min-w-0">נייד<input value={sp.phone} onChange={(e) => setSp({ ...sp, phone: e.target.value })} dir="ltr" inputMode="tel" placeholder="חסר" className="input text-right" /></label>
+                  <label className="label min-w-0">אימייל<input value={sp.email} onChange={(e) => setSp({ ...sp, email: e.target.value })} dir="ltr" type="email" placeholder="חסר" className="input text-right" /></label>
+                </div>
+              </>
+            )}
+          </div>
+        )}
         {state === 'loading' && <div role="status" className="flex items-center gap-2 text-sm text-accent-dark"><span className="spinner" />בודקת את החיובים הפתוחים…</div>}
         {option && <FocusPanel key={`${option.payerId}-${option.focus.linkId ?? 'none'}-${option.focus.activity}-${option.focus.childName}`} part="info" option={option} enroll={enroll} onEnrolled={afterEnroll} onPick={pickChild} />}
         {option && (
@@ -743,7 +784,7 @@ function PaymentCard({ item, preview, debug, allPayers, enroll, labels }: { item
         <h2 className="m-0 text-lg">3 · קבלה ב-Morning</h2>
         {!mobile && mode === 'new' && newDepOn && camp && <DepositChoice key={camp.id} activityId={camp.id} value={newDep} onChange={setNewDep} lockKind={!!created} />}
         <div className="border border-line rounded-[14px] p-4 flex flex-col gap-2 bg-[#FBFBFC] text-sm">
-          <div className="flex justify-between"><span className="text-muted">לקוח</span><span>{mode === 'new' ? `${clientName || '—'}${mcSel ? '' : created ? '' : ' · חדש/ה'}` : option?.name || '—'}</span></div>
+          <div className="flex justify-between"><span className="text-muted">לקוח</span><span>{mode === 'new' ? `${clientName || '—'}${mcSel ? '' : created ? '' : ' · חדש/ה'}` : spActive ? `${sp.name.trim()} · חדש/ה` : option?.name || '—'}</span></div>
           {mode === 'new' ? (
             <div className="flex justify-between gap-2 py-1.5 border-b border-[#EEEFF3]">
               <span>{camp ? (newDepOn && newDep.kind === 'deposit' ? newDep.item?.name || `${camp.name} - מקדמה` : camp.name) : activity ? `חוג ${enroll.groups.find((g) => `g:${g.id}` === activity)?.label || ''}` : '—'}{ncFirst ? ` · ${ncFirst}` : ''}</span>

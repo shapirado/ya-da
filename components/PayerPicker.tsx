@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { addMorningCustomer, searchMorning } from '@/app/actions';
+import { searchMorning } from '@/app/actions';
 import type { MorningClientHit } from '@/lib/morning';
 
 type Picked = { id: string; created: boolean };
@@ -10,8 +10,9 @@ const pick = (on: boolean) => `text-right min-h-11 px-3 py-1.5 rounded-[10px] te
 
 /**
  * Payer fields of the new-child form. A new payer is always tied to a Morning customer chosen here:
- * either one found by the search, or one opened with the explicit "הוספה כלקוח/ה ב-Morning" button.
- * Saving the form never opens a Morning customer by itself.
+ * either one found by the search, or a new one marked with the explicit "הוספה כלקוח/ה ב-Morning" button.
+ * Nothing changes in Morning until "שמירה": the new customer is opened then, named "<parent> (<child>)",
+ * with the labels of the child's ticked activities plus any chosen here.
  *
  * The name / phone / email inputs stay uncontrolled so RegistrationPaste can keep filling them by name.
  */
@@ -75,18 +76,11 @@ export function PayerPicker({ prefix, payers, labels, optional }: {
     setErr('');
   }
 
-  async function add() {
+  function add() {
     const name = nameRef.current?.value.trim() || '';
-    const childFirst = nameRef.current?.form?.querySelector<HTMLInputElement>('[name="first_name"]')?.value.trim() || '';
     if (!name) { setErr('צריך שם מלא'); return; }
-    if (!childFirst) { setErr('צריך קודם את השם הפרטי של הילד/ה — הוא נכנס לשם הלקוח ב-Morning'); return; }
-    setBusy('add');
     setErr('');
-    const r = await addMorningCustomer({ name, phone: phoneRef.current?.value.trim() || '', email: emailRef.current?.value.trim() || '', labels: chosen, childFirst });
-    setBusy(null);
-    if (!r.ok) { setErr(`לא הצלחתי להוסיף לקוח ב-Morning: ${r.error}`); return; }
-    if (nameRef.current) nameRef.current.value = r.name;
-    setSel({ id: r.id, created: true });
+    setSel({ id: '', created: true });
   }
 
   const locked = !!sel;
@@ -106,6 +100,8 @@ export function PayerPicker({ prefix, payers, labels, optional }: {
       {/* hidden rather than unmounted, so pasted registration details aren't lost */}
       <div className={existing ? 'hidden' : 'flex flex-col gap-3'}>
         <input type="hidden" name={`${prefix}_morning_id`} value={sel?.id || ''} />
+        {sel?.created && <input type="hidden" name={`${prefix}_morning_new`} value="1" />}
+        {sel?.created && chosen.map((l) => <input key={l} type="hidden" name={`${prefix}_labels`} value={l} />)}
         <div className="flex gap-2 items-end">
           <label className="label flex-1">שם מלא
             <input ref={nameRef} name={`${prefix}_name`} className="input"
@@ -143,8 +139,8 @@ export function PayerPicker({ prefix, payers, labels, optional }: {
 
         {locked && (
           <div role="status" className="flex items-center justify-between gap-3 p-3 rounded-[14px] bg-ok-soft text-sm">
-            <span>{sel!.created ? 'הוספתי לקוח/ה חדש/ה ב-Morning' : 'נבחר/ה לקוח/ה קיים/ת ב-Morning — הפרטים נלקחו משם ואפשר לערוך אותם כאן (ב-Morning הם לא ישתנו)'}</span>
-            <button type="button" className="btn-secondary flex-none" onClick={() => setSel(null)} title="אבטל את הבחירה — הלקוח ב-Morning לא יימחק">שינוי</button>
+            <span>{sel!.created ? `לקוח/ה חדש/ה ייפתח/תיפתח ב-Morning בשמירה${chosen.length ? ` · תוויות: ${chosen.join(', ')}` : ''} · התווית של הפעילות תתווסף לבד` : 'נבחר/ה לקוח/ה קיים/ת ב-Morning — הפרטים נלקחו משם ואפשר לערוך אותם כאן (ב-Morning הם לא ישתנו)'}</span>
+            <button type="button" className="btn-secondary flex-none" onClick={() => setSel(null)} title={sel!.created ? 'אבטל — שום דבר לא נפתח ב-Morning' : 'אבטל את הבחירה — הלקוח ב-Morning לא יימחק'}>שינוי</button>
           </div>
         )}
 
@@ -163,8 +159,8 @@ export function PayerPicker({ prefix, payers, labels, optional }: {
                 })}
               </div>
             )}
-            <button type="button" className="btn-secondary self-start" disabled={!!busy} onClick={add} title="אפתח עכשיו כרטיס לקוח חדש ב-Morning">
-              {busy === 'add' ? <><span className="spinner" />מוסיפה ב-Morning…</> : 'הוספה כלקוח/ה ב-Morning'}
+            <button type="button" className="btn-secondary self-start" disabled={!!busy} onClick={add} title="הלקוח/ה ייפתח/תיפתח ב-Morning כשאשמור את הטופס">
+              הוספה כלקוח/ה ב-Morning
             </button>
           </div>
         )}

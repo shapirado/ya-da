@@ -57,7 +57,32 @@ async function call<T>(path: string, payload: unknown): Promise<T> {
   return body as T;
 }
 
-/** Creates a customer and returns its id (stored as children.morning_customer_id). */
+/** Morning labels (morning_labels table) — Morning takes their ids, not names. */
+export const LABEL_CLASS = 'חוג אומנות';
+export const LABEL_CAMP = 'קייטנה';
+export const MORNING_LABEL_IDS: Record<string, string> = {
+  [LABEL_CLASS]: 'd9333e4e-afc6-43aa-bb9f-a122491c0d0d',
+  [LABEL_CAMP]: '628dd072-9cb4-417f-9fe4-e4fe0f6acb22',
+};
+
+/** The labels a new customer gets from the child's activities: חוג → "חוג אומנות", קייטנה → "קייטנה". */
+export function activityLabels(a: { classes: boolean; camps: boolean }): string[] {
+  return [a.classes ? LABEL_CLASS : '', a.camps ? LABEL_CAMP : ''].filter(Boolean);
+}
+
+/** Label names (or ids) → Morning label ids, deduped, at most 3. Unknown names are dropped (and logged). */
+export function labelIds(labels: string[]): string[] {
+  const ids = labels.map((l) => {
+    const t = l.trim();
+    if (MORNING_LABEL_IDS[t]) return MORNING_LABEL_IDS[t];
+    if (/^[0-9a-f-]{36}$/i.test(t)) return t;
+    if (t) console.log('[morning debug] unknown label, not sent:', t);
+    return '';
+  }).filter(Boolean);
+  return [...new Set(ids)].slice(0, 3);
+}
+
+/** Creates a customer and returns its id (stored as children.morning_customer_id). Labels are names or ids. */
 export async function createMorningClient(input: { name: string; phone?: string; email?: string; labels?: string[] }): Promise<string> {
   const body = await call<{ id: string }>('/clients', {
     name: input.name,
@@ -65,10 +90,63 @@ export async function createMorningClient(input: { name: string; phone?: string;
     phone: input.phone || undefined,
     mobile: input.phone || undefined,
     country: 'IL',
-    ...(input.labels?.length ? { labels: input.labels } : {}),
+    ...(input.labels?.length && labelIds(input.labels).length ? { labels: labelIds(input.labels) } : {}),
   });
   if (!body.id) throw new Error('Morning לא החזיר מזהה לקוח');
   return body.id;
+}
+
+export type MorningClient = { id: string; name: string; phone: string; mobile: string; emails: string[]; contactPerson: string };
+
+async function rest<T>(method: 'GET' | 'PUT', path: string, payload?: unknown): Promise<T> {
+  if (payload !== undefined) console.log(`[morning debug] ${method} ${BASE}${path}:`, JSON.stringify(payload));
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
+    body: payload !== undefined ? JSON.stringify(payload) : undefined,
+    cache: 'no-store',
+  });
+  const body = await res.json().catch(() => ({}));
+  if (method !== 'GET') console.log(`[morning debug] ${method} ${path} → ${res.status}:`, JSON.stringify(body).slice(0, 800));
+  if (!res.ok) throw new Error(`Morning ${path}: ${body.errorMessage || res.status}`);
+  return body as T;
+}
+
+/**
+ * A customer as the child page shows it. The payer's own phone is `phone`; a second parent kept as the
+ * customer's contact has `contactPerson`, `mobile` and `emails[1]`.
+ */
+export async function getMorningClient(id: string): Promise<MorningClient> {
+  const c = await rest<any>('GET', `/clients/${id}`);
+  return {
+    id: String(c.id || id),
+    name: c.name || '',
+    phone: c.phone || '',
+    mobile: c.mobile || '',
+    emails: Array.isArray(c.emails) ? c.emails.filter(Boolean).map(String) : [],
+    contactPerson: c.contactPerson || '',
+  };
+}
+
+/** PUT /clients/{id} — only the fields sent are changed. */
+export async function updateMorningClient(id: string, patch: { phone?: string; mobile?: string; emails?: string[]; contactPerson?: string }): Promise<void> {
+  await rest('PUT', `/clients/${id}`, patch);
+}
+
+export type ReceiptRef = { number: string | null; url: string | null };
+
+/** The receipts (document type MORNING_DOC_TYPE, default 320) issued to one customer, by document id. */
+export async function searchClientReceipts(clientId: string): Promise<Map<string, ReceiptRef>> {
+  const out = new Map<string, ReceiptRef>();
+  const type = Number(process.env.MORNING_DOC_TYPE || 320);
+  for (let page = 1; page <= 10; page++) {
+    const body = await call<{ items?: any[]; pages?: number }>('/documents/search', { clientId, type: [type], page, pageSize: 100, sort: 'documentDate' });
+    for (const d of body.items || []) {
+      out.set(String(d.id), { number: d.number != null ? String(d.number) : null, url: d.url?.he || d.url?.origin || null });
+    }
+    if (!body.pages || page >= body.pages) break;
+  }
+  return out;
 }
 
 export type MorningClientHit = { id: string; name: string; phone: string; email: string; taxId: string; labels: string[] };
