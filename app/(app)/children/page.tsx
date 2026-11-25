@@ -6,6 +6,7 @@ import { normName } from '@/lib/matching';
 import { Dot, GenderIcon, PageHeader, PlusIcon } from '@/components/ui';
 import { Flash } from '@/components/Flash';
 import { NavSelect } from '@/components/NavSelect';
+import { LiveSearch, type Suggestion } from '@/components/LiveSearch';
 
 type SP = { q?: string; g?: string; future?: string; ok?: string; err?: string };
 
@@ -30,6 +31,13 @@ export default async function ChildrenPage({ searchParams }: { searchParams: Pro
   const campList = m.activities.filter((a) => !isClass(a)).sort((a, b) => (b.start_date || '').localeCompare(a.start_date || ''));
 
   const q = normName(sp.q);
+  // type-ahead dropdown: every child with the parent and phone it can be found by
+  const suggestions: Suggestion[] = m.children
+    .map((c) => {
+      const payer = c.morning_customer_id ? mp.payers.get(c.morning_customer_id) : undefined;
+      return { id: c.id, name: childName(c), sub: [payer?.name, payer?.phone].filter(Boolean).join(' · '), hay: `${childName(c)} ${payer?.name || ''} ${payer?.phone || ''}` };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, 'he'));
   const rows = m.children
     .map((c) => {
       const cs = byChild.get(c.id) || [];
@@ -83,15 +91,12 @@ export default async function ChildrenPage({ searchParams }: { searchParams: Pro
       <Flash ok={sp.ok} err={sp.err} />
 
       <div className="flex flex-wrap gap-2.5 items-center">
-        <form className="flex-[1_1_260px] max-md:basis-full" action="/children">
-          {sp.g && <input type="hidden" name="g" value={sp.g} />}
-          {sp.future && <input type="hidden" name="future" value={sp.future} />}
-          <label className="flex items-center gap-2 min-h-11 px-3.5 rounded-xl bg-white border border-line-strong" title="אחפש לפי שם ילד/ה, הורה או טלפון">
+        <div className="flex-[1_1_260px] max-md:basis-full">
+          <div role="search" className="relative flex items-center gap-2 min-h-11 px-3.5 rounded-xl bg-white border border-line-strong" title="אחפש לפי שם ילד/ה, הורה או טלפון">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5C5A66" strokeWidth="1.8" aria-hidden><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
-            <span className="sr-only">חיפוש</span>
-            <input name="q" type="search" defaultValue={sp.q} placeholder="חיפוש לפי שם ילד/ה, הורה או טלפון" className="border-0 outline-0 flex-1 text-[15px] bg-transparent min-w-0" />
-          </label>
-        </form>
+            <LiveSearch suggestions={suggestions} defaultValue={sp.q || ''} placeholder="חיפוש לפי שם ילד/ה, הורה או טלפון" />
+          </div>
+        </div>
         {/* phones: one row that scrolls sideways, edge to edge */}
         <div role="group" aria-label="סינון לפי פעילות" className="flex flex-nowrap md:flex-wrap gap-1.5 max-md:overflow-x-auto max-md:-mx-4 max-md:px-4 max-md:pb-0.5 max-md:w-[calc(100%+2rem)] [&>*]:flex-none">
           <FilterChip href={link({ g: undefined })} on={!sp.g} color="#17161C">הכול</FilterChip>
