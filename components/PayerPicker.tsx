@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { searchMorning } from '@/app/actions';
 import type { MorningClientHit } from '@/lib/morning';
+import { MORNING_LABELS } from '@/lib/flags';
 
 type Picked = { id: string; created: boolean };
 
@@ -139,7 +140,7 @@ export function PayerPicker({ prefix, payers, labels, optional }: {
 
         {locked && (
           <div role="status" className="flex items-center justify-between gap-3 p-3 rounded-[14px] bg-ok-soft text-sm">
-            <span>{sel!.created ? `לקוח/ה חדש/ה ייפתח/תיפתח ב-Morning בשמירה${chosen.length ? ` · תוויות: ${chosen.join(', ')}` : ''} · התווית של הפעילות תתווסף לבד` : 'נבחר/ה לקוח/ה קיים/ת ב-Morning — הפרטים נלקחו משם ואפשר לערוך אותם כאן (ב-Morning הם לא ישתנו)'}</span>
+            <span>{sel!.created ? `לקוח/ה חדש/ה ייפתח/תיפתח ב-Morning בשמירה${MORNING_LABELS ? `${chosen.length ? ` · תוויות: ${chosen.join(', ')}` : ''} · התווית של הפעילות תתווסף לבד` : ''}` : 'נבחר/ה לקוח/ה קיים/ת ב-Morning — הפרטים נלקחו משם ואפשר לערוך אותם כאן (ב-Morning הם לא ישתנו)'}</span>
             <button type="button" className="btn-secondary flex-none" onClick={() => setSel(null)} title={sel!.created ? 'אבטל — שום דבר לא נפתח ב-Morning' : 'אבטל את הבחירה — הלקוח ב-Morning לא יימחק'}>שינוי</button>
           </div>
         )}
@@ -148,7 +149,7 @@ export function PayerPicker({ prefix, payers, labels, optional }: {
         {!locked && results && (
           <div className="flex flex-col gap-2.5 p-3 rounded-[14px] border-2 border-dashed border-line-strong">
             <span className="text-sm">{results.length ? 'אף אחד מהם לא מתאים?' : 'אין לקוח/ה כזה ב-Morning.'} אפשר להוסיף לפי הפרטים שלמעלה — השם ב-Morning יהיה ״שם ההורה (שם הילד/ה)״</span>
-            {labels.length > 0 && (
+            {MORNING_LABELS && labels.length > 0 && (
               <div role="group" aria-label="תוויות ב-Morning" className="flex gap-1.5 flex-wrap">
                 {labels.map((l) => {
                   const on = chosen.includes(l);

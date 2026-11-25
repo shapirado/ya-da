@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { commitPayment, createCustomerFromScan, createReceiptForNewCustomer, enrollFromScan, findDepositItems, payerCharges, scanScreenshot, searchMorning, type CampPayKind, type DepositItem, type EnrollOptions, type PayerOption, type ScanCtx, type ScanItem, type ScanSuggest } from '@/app/actions';
 import type { MorningClientHit, MorningItemHit } from '@/lib/morning';
 import type { PaymentMethod } from '@/lib/types';
+import { MORNING_LABELS } from '@/lib/flags';
 import { MethodIcon, METHOD_LABEL } from './ui';
 import { DateField } from './DateField';
 
@@ -657,7 +658,7 @@ function PaymentCard({ item, preview, debug, allPayers, enroll, labels }: { item
                   <label className="label">טלפון<input value={npPhone} onChange={(e) => setNpPhone(e.target.value)} type="tel" dir="ltr" className="input text-right" /></label>
                   <label className="label">אימייל לקבלות<input value={npEmail} onChange={(e) => setNpEmail(e.target.value)} type="email" dir="ltr" className="input text-right" /></label>
                 </div>
-                {labels.length > 0 && (
+                {MORNING_LABELS && labels.length > 0 && (
                   <div role="group" aria-label="תוויות ב-Morning" className="flex flex-col gap-1.5">
                     <span className="label">תוויות ב-Morning</span>
                     <div className="flex flex-wrap gap-1.5">
@@ -742,8 +743,8 @@ function PaymentCard({ item, preview, debug, allPayers, enroll, labels }: { item
                     <input type="checkbox" checked={on} className="w-5 h-5 accent-accent flex-none"
                       onChange={(e) => { edited(); setAlloc((a) => { const n = { ...a }; if (e.target.checked) n[c.linkId] = String(Math.min(c.due, Math.max(0, amt - assigned)) || c.due); else delete n[c.linkId]; return n; }); }} />
                     <span className="flex flex-col min-w-0">
-                      <b className="flex items-center gap-1.5 flex-wrap">{c.childFirst}{option.focus.linkId === c.linkId && <span className="chip bg-accent-soft text-accent-dark font-normal">זוהה מההערה</span>}</b>
-                      <span className="text-[13px] text-muted flex items-center gap-1.5"><span className="w-2 h-2 rounded-full flex-none" style={{ background: c.color }} />{c.label} · חוב {money(c.due)}</span>
+                      <b className="flex items-center gap-1.5 flex-wrap">{c.childFirst}{option.focus.linkId === c.linkId && <span className="chip bg-accent-soft text-accent-dark font-normal">זוהה מההערה</span>}{c.ahead && <span className="chip bg-warn-soft text-warn font-normal" title="החודש עוד לא התחיל — תשלום מראש">{c.ahead === 'next' ? 'חודש הבא' : 'מראש'}</span>}</b>
+                      <span className="text-[13px] text-muted flex items-center gap-1.5"><span className="w-2 h-2 rounded-full flex-none" style={{ background: c.color }} />{c.label} · {c.ahead ? 'לתשלום' : 'חוב'} {money(c.due)}</span>
                     </span>
                   </label>
                   {on && <label className="flex items-center gap-1 text-[13px] text-muted">₪<input value={alloc[c.linkId]} onChange={(e) => { edited(); setAlloc((a) => ({ ...a, [c.linkId]: e.target.value })); }} inputMode="decimal" aria-label={`סכום עבור ${c.childFirst}`} className="w-16 min-h-10 px-2 rounded-lg border border-line-strong text-[15px]" /></label>}

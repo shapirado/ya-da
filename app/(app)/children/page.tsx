@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { loadModel } from '@/lib/data';
-import { allCharges, childName, familyDebts, fmtMoney, groupLabel, isClass, maps, type Charge } from '@/lib/billing';
+import { allCharges, childName, familyDebts, fmtMoney, groupLabel, hasPayment, isClass, maps, type Charge } from '@/lib/billing';
 import { monthName, monthStart } from '@/lib/dates';
 import { normName } from '@/lib/matching';
 import { Dot, GenderIcon, PageHeader, PlusIcon } from '@/components/ui';
@@ -65,7 +65,7 @@ export default async function ChildrenPage({ searchParams }: { searchParams: Pro
   // One line per activity: each class group (its months), then each camp — shared by the table and the phone cards
   const subsOf = ({ cs, groupIds, camps }: { cs: Charge[]; groupIds: string[]; camps: Charge[] }) => [
     ...groupIds.map((gid) => {
-      const months = cs.filter((x) => x.isClass && mp.activities.get(x.activityId)?.class_group_id === gid && (showFuture || x.started));
+      const months = cs.filter((x) => x.isClass && mp.activities.get(x.activityId)?.class_group_id === gid && (showFuture || x.started || hasPayment(x)));
       const cur = months.find((x) => x.month === thisMonth);
       const g = mp.groups.get(gid);
       return { key: `g-${gid}`, color: g?.color || '#5C5A66', label: groupLabel(g), priced: cur, months, camp: undefined as Charge | undefined };
@@ -73,7 +73,10 @@ export default async function ChildrenPage({ searchParams }: { searchParams: Pro
     ...camps.map((x) => ({ key: `c-${x.activityId}`, color: x.color, label: x.shortLabel, priced: x, months: undefined as Charge[] | undefined, camp: x })),
   ];
   const campCell = (x: Charge) => CELL[x.started || x.status !== 'unpaid' ? x.status : 'future'];
-  const shortMonth = (iso: string | null) => { const n = monthName(iso); return n.length > 3 ? `${n.slice(0, 3)}׳` : n; };
+  // a month not started yet but already (partly) paid ahead shows its payment, not "עתידי"
+  const cellOf = (x: Charge) => CELL[x.started || hasPayment(x) ? x.status : 'future'];
+  // the month as its number ("11") — the full name is in the tooltip
+  const shortMonth = (iso: string | null) => (iso ? String(Number(iso.slice(5, 7))) : '—');
 
   const priceNote = (ch: Charge | undefined) => {
     if (!ch) return null;
@@ -150,9 +153,9 @@ export default async function ChildrenPage({ searchParams }: { searchParams: Pro
                         {s.months ? (
                           <span className="flex gap-[3px] flex-wrap justify-end" aria-label="תשלומים חודשיים">
                             {s.months.map((x) => {
-                              const st = CELL[x.started ? x.status : 'future'];
+                              const st = cellOf(x);
                               const tip = `${monthName(x.month)} · ${st.t}`;
-                              return <span key={x.linkId} role="img" aria-label={tip} title={tip} className="min-w-[34px] h-[22px] px-1 box-border rounded-md text-[11px] flex items-center justify-center" style={{ background: st.bg, border: st.border, color: st.fg }}>{shortMonth(x.month)}</span>;
+                              return <span key={x.linkId} role="img" aria-label={tip} title={tip} className="min-w-[26px] h-[22px] px-1 box-border rounded-md text-[11px] tabular-nums flex items-center justify-center" style={{ background: st.bg, border: st.border, color: st.fg }}>{shortMonth(x.month)}</span>;
                             })}
                             {!s.months.length && <span className="text-muted text-xs">—</span>}
                           </span>
@@ -238,10 +241,9 @@ export default async function ChildrenPage({ searchParams }: { searchParams: Pro
                       {s.months ? (
                         <div className="flex gap-[3px]">
                           {s.months.map((x) => {
-                            const k = x.started ? x.status : 'future';
-                            const st = CELL[k];
+                            const st = cellOf(x);
                             const tip = `${monthName(x.month)} · ${st.t}`;
-                            return <span key={x.linkId} role="img" aria-label={tip} title={tip} className="w-5 h-6 rounded-[5px] box-border flex items-center justify-center text-[10px]" style={{ background: st.bg, border: st.border, color: st.fg }}>{monthName(x.month).charAt(0)}</span>;
+                            return <span key={x.linkId} role="img" aria-label={tip} title={tip} className="min-w-6 h-6 px-0.5 rounded-[5px] box-border flex items-center justify-center text-[11px] tabular-nums" style={{ background: st.bg, border: st.border, color: st.fg }}>{shortMonth(x.month)}</span>;
                           })}
                           {!s.months.length && <span className="text-muted text-sm">—</span>}
                         </div>

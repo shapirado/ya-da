@@ -552,7 +552,10 @@ export async function logReminder(payerId: string, total: number, message: strin
 
 // ---------- payments: scan → match → receipt ----------
 
-export type ChargeOption = Pick<Charge, 'linkId' | 'childId' | 'childFirst' | 'label' | 'color' | 'due' | 'month' | 'activityId' | 'isClass' | 'price' | 'paid'>;
+export type ChargeOption = Pick<Charge, 'linkId' | 'childId' | 'childFirst' | 'label' | 'color' | 'due' | 'month' | 'activityId' | 'isClass' | 'price' | 'paid'> & {
+  /** a class month not started yet, paid ahead: 'next' = next month */
+  ahead: 'next' | 'later' | null;
+};
 
 // A first קייטנה payment below the price is a מקדמה by default; the user may switch it to a plain partial payment.
 export type CampPayKind = 'deposit' | 'partial';
@@ -701,8 +704,14 @@ export async function morningLabels(): Promise<string[]> {
   return loadMorningLabels();
 }
 
-function toOption(c: Charge): ChargeOption {
-  return { linkId: c.linkId, childId: c.childId, childFirst: c.childFirst, label: c.label, color: c.color, due: c.due, month: c.month, activityId: c.activityId, isClass: c.isClass, price: c.price, paid: c.paid };
+function toOption(c: Charge, today: string): ChargeOption {
+  const ahead = c.isClass && !c.started ? (isNextMonth(c, today) ? 'next' : 'later') : null;
+  return { linkId: c.linkId, childId: c.childId, childFirst: c.childFirst, label: c.label, color: c.color, due: c.due, month: c.month, activityId: c.activityId, isClass: c.isClass, price: c.price, paid: c.paid, ahead };
+}
+
+/** a class row for the month after this one */
+function isNextMonth(c: Charge, today: string): boolean {
+  return !!c.month && monthStart(c.month) === addMonths(monthStart(today), 1);
 }
 
 export type DepositItemsResult = { ok: true; query: string; items: MorningItemHit[] } | { ok: false; error: string };
@@ -767,8 +776,8 @@ function buildOption(model: Model, logs: PaymentLog[], enroll: EnrollOptions, pa
   const kidRows = model.children.filter((c) => c.morning_customer_id === payerId || c.morning_customer_id_2 === payerId);
   const kidIds = new Set(kidRows.map((k) => k.id));
   const mine = allCharges(model).filter((c) => c.payerId === payerId || kidIds.has(c.childId));
-  // payable now: started charges, plus camps not started yet (camps are paid ahead)
-  const charges = mine.filter((c) => c.due > 0 && (c.started || !c.isClass));
+  // payable now: started charges, camps not started yet (camps are paid ahead) and next month's classes (paid ahead)
+  let charges = mine.filter((c) => c.due > 0 && (c.started || !c.isClass || isNextMonth(c, model.today)));
 
   // --- the child: the name in the note, else the child matched from the note's words, else an only child
   const want = normName(suggest.childFirst);
@@ -812,6 +821,10 @@ function buildOption(model: Model, logs: PaymentLog[], enroll: EnrollOptions, pa
     const rows = kidCharges.filter((c) => groupOf(c) === gid);
     // the month this payment is for: the earliest one still owed, else the latest month
     charge = rows.find((c) => c.started && c.due > 0) || rows.find((c) => c.due > 0) || rows[rows.length - 1];
+  }
+  // the identified charge is always listed, even a month further ahead, so it can be seen and changed
+  if (charge && charge.due > 0 && !charges.some((c) => c.linkId === charge!.linkId)) {
+    charges = [...charges, charge].sort((x, y) => (x.month || '').localeCompare(y.month || ''));
   }
   const payments = charge
     ? logs.flatMap((l) => (l.allocations || []).filter((a) => a.child_activity_id === charge!.linkId)
@@ -873,7 +886,7 @@ function buildOption(model: Model, logs: PaymentLog[], enroll: EnrollOptions, pa
     score: base.score,
     reason: base.reason,
     debt: round2(openCharges(model, payerId).reduce((t, c) => t + c.due, 0)),
-    charges: charges.map(toOption),
+    charges: charges.map((c) => toOption(c, model.today)),
     suggested: allocations,
     leftover,
     kids: kidRows.map((k) => ({ id: k.id, first: k.first_name || '', name: childName(k) })),

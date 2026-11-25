@@ -137,6 +137,11 @@ export function allCharges(m: Model): Charge[] {
   return out.sort((x, y) => (x.month || '').localeCompare(y.month || '') || x.childName.localeCompare(y.childName, 'he'));
 }
 
+/** Something was paid on this charge (it may be a month not started yet, paid ahead). */
+export function hasPayment(c: Pick<Charge, 'paid' | 'status'>): boolean {
+  return c.paid > 0 || c.status !== 'unpaid';
+}
+
 /** Charges that are due now: started and not fully paid. Reminders only include these. */
 export function openCharges(m: Model, payerId?: string): Charge[] {
   return allCharges(m).filter((c) => c.started && c.due > 0 && (payerId === undefined || c.payerId === payerId));

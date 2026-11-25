@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { loadModel } from '@/lib/data';
-import { allCharges, childName, fmtMoney, groupLabel, maps, type Charge } from '@/lib/billing';
+import { allCharges, childName, fmtMoney, groupLabel, hasPayment, maps, type Charge } from '@/lib/billing';
 import { monthLabel, monthStart } from '@/lib/dates';
 import { getMorningClient, morningConfigured, searchClientReceipts, type MorningClient, type ReceiptRef } from '@/lib/morning';
 import { markCharge, saveChild } from '@/app/actions';
@@ -70,7 +70,7 @@ export default async function ChildPage({ params, searchParams }: { params: Prom
     });
   const contact: MorningContact | null = c1?.contactPerson ? { name: c1.contactPerson, phone: c1.mobile, email: c1.emails[1] || '' } : null;
   const thisMonth = monthStart(m.today);
-  const hiddenFuture = charges.filter((c) => c.isClass && !c.started).length;
+  const hiddenFuture = charges.filter((c) => c.isClass && !c.started && !hasPayment(c)).length;
   const receipts = await loadReceipts([...new Set(charges.flatMap((c) => c.invoices))], [child.morning_customer_id, child.morning_customer_id_2]);
 
   // a group whose first month for this child is this month: its join month shows under the group in the שיבוץ card
@@ -129,7 +129,7 @@ export default async function ChildPage({ params, searchParams }: { params: Prom
         <section className="flex-[1_1_560px] min-w-0 flex flex-col gap-6">
           {[...byGroup.entries()].map(([gid, rows]) => {
             const g = mp.groups.get(gid);
-            const visible = rows.filter((r) => showFuture || r.started);
+            const visible = rows.filter((r) => showFuture || r.started || hasPayment(r)); // months paid ahead always show
             const futureMonths = rows.filter((r) => (r.month || '') >= thisMonth).map((r) => r.month!);
             return (
               <div key={gid} className="card flex flex-col gap-3">

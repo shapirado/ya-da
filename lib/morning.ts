@@ -2,6 +2,7 @@
 // Docs: https://www.greeninvoice.co.il/api-docs
 
 import type { PaymentMethod } from './types.ts';
+import { MORNING_LABELS } from './flags.ts';
 
 // One connection, always the production account. Keys: MORNING_API_KEY_ID / MORNING_API_SECRET.
 const BASE = 'https://api.greeninvoice.co.il/api/v1';
@@ -90,7 +91,7 @@ export async function createMorningClient(input: { name: string; phone?: string;
     phone: input.phone || undefined,
     mobile: input.phone || undefined,
     country: 'IL',
-    ...(input.labels?.length && labelIds(input.labels).length ? { labels: labelIds(input.labels) } : {}),
+    ...(MORNING_LABELS && input.labels?.length && labelIds(input.labels).length ? { labels: labelIds(input.labels) } : {}),
   });
   if (!body.id) throw new Error('Morning לא החזיר מזהה לקוח');
   return body.id;
